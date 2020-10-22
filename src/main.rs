@@ -1,14 +1,20 @@
 mod commands;
+mod client_data;
+
 
 use std::{
     collections::HashSet,
     env,
-    sync::Arc,
+};
+
+use tracing::{error, info};
+use tracing_subscriber::{
+    FmtSubscriber,
+    EnvFilter,
 };
 
 use serenity::{
     async_trait,
-    client::bridge::gateway::ShardManager,
     framework::{
         StandardFramework,
         standard::macros::group,
@@ -18,19 +24,9 @@ use serenity::{
     prelude::*,
 };
 
-use tracing::{error, info};
-use tracing_subscriber::{
-    FmtSubscriber,
-    EnvFilter,
-};
-
 use commands::basic::*;
+use client_data::*;
 
-struct ShardManagerContainer;
-
-impl TypeMapKey for ShardManagerContainer {
-    type Value = Arc<Mutex<ShardManager>>;
-}
 
 struct Handler;
 
@@ -45,9 +41,11 @@ impl EventHandler for Handler {
     }
 }
 
+
 #[group]
 #[commands(ping, quit)]
 struct General;
+
 
 #[tokio::main]
 async fn main() {

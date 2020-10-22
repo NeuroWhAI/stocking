@@ -1,10 +1,12 @@
-use crate::ShardManagerContainer;
+use crate::client_data::ShardManagerContainer;
+
 use serenity::prelude::*;
 use serenity::model::prelude::*;
 use serenity::framework::standard::{
     CommandResult,
     macros::command,
 };
+
 
 #[command]
 async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
