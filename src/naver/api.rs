@@ -11,17 +11,18 @@ where
     T: DeserializeOwned,
 {
     if json["resultCode"] == json!("success") {
-        let data = json.get_mut("result")
+        let data = json
+            .get_mut("result")
             .and_then(|v| v.get_mut("areas"))
             .and_then(|v| v.get_mut(0))
             .and_then(|v| v.get_mut("datas"))
             .and_then(|v| v.get_mut(0))
             .map(|v| v.take());
-            
+
         match data {
             Some(Value::Null) => bail!("{}", json["resultCode"]),
             Some(val) => Ok(serde_json::from_value(val)?),
-            None => bail!("data path not exists")
+            None => bail!("data path not exists"),
         }
     } else {
         bail!("{}", json["resultCode"])

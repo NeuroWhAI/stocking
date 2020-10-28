@@ -1,12 +1,8 @@
 use crate::client_data::ShardManagerContainer;
 
-use serenity::prelude::*;
+use serenity::framework::standard::{macros::command, CommandResult};
 use serenity::model::prelude::*;
-use serenity::framework::standard::{
-    CommandResult,
-    macros::command,
-};
-
+use serenity::prelude::*;
 
 #[command]
 async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
@@ -24,7 +20,8 @@ async fn quit(ctx: &Context, msg: &Message) -> CommandResult {
         msg.reply(ctx, "Shutting down!").await?;
         manager.lock().await.shutdown_all().await;
     } else {
-        msg.reply(ctx, "There was a problem getting the shard manager").await?;
+        msg.reply(ctx, "There was a problem getting the shard manager")
+            .await?;
     }
 
     Ok(())

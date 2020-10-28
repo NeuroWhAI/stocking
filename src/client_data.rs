@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use serenity::{client::bridge::gateway::ShardManager, prelude::{Mutex, TypeMapKey}};
-
+use serenity::{
+    client::bridge::gateway::ShardManager,
+    prelude::{Mutex, TypeMapKey},
+};
 
 pub struct ShardManagerContainer;
 

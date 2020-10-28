@@ -1,33 +1,22 @@
+mod client_data;
 mod commands;
 mod naver;
-mod client_data;
 
-
-use std::{
-    collections::HashSet,
-    env,
-};
+use std::{collections::HashSet, env};
 
 use tracing::{error, info};
-use tracing_subscriber::{
-    FmtSubscriber,
-    EnvFilter,
-};
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 use serenity::{
     async_trait,
-    framework::{
-        StandardFramework,
-        standard::macros::group,
-    },
+    framework::{standard::macros::group, StandardFramework},
     http::Http,
     model::{event::ResumedEvent, gateway::Ready},
     prelude::*,
 };
 
-use commands::basic::*;
 use client_data::*;
-
+use commands::basic::*;
 
 struct Handler;
 
@@ -42,11 +31,9 @@ impl EventHandler for Handler {
     }
 }
 
-
 #[group]
 #[commands(ping, quit)]
 struct General;
-
 
 #[tokio::main]
 async fn main() {
@@ -60,9 +47,7 @@ async fn main() {
 
     tracing::subscriber::set_global_default(subscriber).expect("Failed to start the logger");
 
-
-    let token = env::var("DISCORD_TOKEN")
-        .expect("Expected a token in the environment");
+    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 
     let http = Http::new_with_token(&token);
 
@@ -73,15 +58,13 @@ async fn main() {
             owners.insert(info.owner.id);
 
             (owners, info.id)
-        },
+        }
         Err(why) => panic!("Could not access application info: {:?}", why),
     };
 
     // Create the framework.
     let framework = StandardFramework::new()
-        .configure(|c| c
-            .owners(owners)
-            .prefix("!"))
+        .configure(|c| c.owners(owners).prefix("!"))
         .group(&GENERAL_GROUP);
 
     let mut client = Client::new(&token)
@@ -98,7 +81,9 @@ async fn main() {
     let shard_manager = client.shard_manager.clone();
 
     tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.expect("Could not register ctrl+c handler");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Could not register ctrl+c handler");
         shard_manager.lock().await.shutdown_all().await;
     });
 
