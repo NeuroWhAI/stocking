@@ -1,4 +1,5 @@
 mod commands;
+mod naver;
 mod client_data;
 
 
