@@ -17,6 +17,7 @@ use serenity::{
 
 use client_data::*;
 use commands::basic::*;
+use commands::finance::*;
 
 struct Handler;
 
@@ -34,6 +35,10 @@ impl EventHandler for Handler {
 #[group]
 #[commands(ping, quit)]
 struct General;
+
+#[group]
+#[commands(show_index)]
+struct Finance;
 
 #[tokio::main]
 async fn main() {
@@ -65,7 +70,8 @@ async fn main() {
     // Create the framework.
     let framework = StandardFramework::new()
         .configure(|c| c.owners(owners).prefix("!"))
-        .group(&GENERAL_GROUP);
+        .group(&GENERAL_GROUP)
+        .group(&FINANCE_GROUP);
 
     let mut client = Client::new(&token)
         .framework(framework)
