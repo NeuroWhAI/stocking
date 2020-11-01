@@ -9,10 +9,14 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 use serenity::{
     async_trait,
-    framework::{standard::macros::group, StandardFramework},
-    http::Http,
-    model::{event::ResumedEvent, gateway::Ready},
+    framework::standard::{
+        Args, CommandResult, CommandGroup,
+        HelpOptions, help_commands, StandardFramework,
+        macros::{group, help},
+    },
     prelude::*,
+    http::Http,
+    model::prelude::*,
 };
 
 use client_data::*;
@@ -39,6 +43,19 @@ struct General;
 #[group]
 #[commands(show_index)]
 struct Finance;
+
+#[help]
+async fn my_help(
+    context: &Context,
+    msg: &Message,
+    args: Args,
+    help_options: &'static HelpOptions,
+    groups: &[&'static CommandGroup],
+    owners: HashSet<UserId>,
+) -> CommandResult {
+    let _ = help_commands::with_embeds(context, msg, args, &help_options, groups, owners).await;
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() {
@@ -70,6 +87,7 @@ async fn main() {
     // Create the framework.
     let framework = StandardFramework::new()
         .configure(|c| c.owners(owners).prefix("!"))
+        .help(&MY_HELP)
         .group(&GENERAL_GROUP)
         .group(&FINANCE_GROUP);
 
