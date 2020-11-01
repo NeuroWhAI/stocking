@@ -1,8 +1,15 @@
 mod client_data;
 mod commands;
 mod naver;
+mod trader;
+mod util;
 
-use std::{collections::HashSet, env};
+use std::{
+    collections::HashSet,
+    env,
+    sync::mpsc::{self},
+    sync::Arc,
+};
 
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -10,13 +17,14 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use serenity::{
     async_trait,
     framework::standard::{
-        Args, CommandResult, CommandGroup,
-        HelpOptions, help_commands, StandardFramework,
+        help_commands,
         macros::{group, help},
+        Args, CommandGroup, CommandResult, HelpOptions, StandardFramework,
     },
-    prelude::*,
+    futures::future::join_all,
     http::Http,
     model::prelude::*,
+    prelude::*,
 };
 
 use client_data::*;
@@ -70,8 +78,23 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).expect("Failed to start the logger");
 
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+    let main_channel: u64 = env::var("DISCORD_CHANNEL")
+        .map(|val| val.parse().expect("Can not parse channel"))
+        .expect("Expected a channel in the environment");
 
-    let http = Http::new_with_token(&token);
+    let http = Arc::new(Http::new_with_token(&token));
+
+    let (tx_quit, rx_quit) = mpsc::channel();
+    let mut traders = Vec::new();
+
+    // Start traders.
+    {
+        let discord = Arc::clone(&http);
+        let handle = tokio::spawn(async move {
+            trader::notify_market_state(discord, main_channel, rx_quit).await
+        });
+        traders.push(handle);
+    }
 
     // Fetch bot's owners and id.
     let (owners, _bot_id) = match http.get_current_application_info().await {
@@ -114,4 +137,9 @@ async fn main() {
     if let Err(why) = client.start().await {
         error!("Client error: {:?}", why);
     }
+
+    for _ in 0..traders.len() {
+        tx_quit.send(()).unwrap();
+    }
+    join_all(traders).await;
 }
