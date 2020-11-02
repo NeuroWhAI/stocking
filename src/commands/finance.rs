@@ -36,10 +36,8 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                         ));
                         e.fields(vec![
                             ("거래량(천주)", index.trading_volume.to_string(), true),
-                            ("\u{200B}", "\u{200B}".into(), true),
                             ("거래대금(백만)", index.trading_value.to_string(), true),
                             ("장중최고", index.high_value.to_string(), true),
-                            ("\u{200B}", "\u{200B}".into(), true),
                             ("장중최저", index.low_value.to_string(), true),
                         ]);
                         e.footer(|f| {
