@@ -30,9 +30,9 @@ pub async fn notify_market_state(discord: Arc<Http>, channel_id: u64, rx_quit: R
                                     e.title(format!("KOSPI {}", index.state));
                                     e.description(format!(
                                         "{}　{}{}　{:.2}%",
-                                        format_value_with_base_100(index.now_value),
+                                        format_value(index.now_value, 2),
                                         get_change_value_char(index.change_value),
-                                        format_value_with_base_100(index.change_value),
+                                        format_value(index.change_value, 2),
                                         index.change_rate
                                     ));
                                     e.color(get_change_value_color(index.change_value));

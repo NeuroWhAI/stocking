@@ -21,9 +21,9 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                         e.title(name);
                         e.description(format!(
                             "{}　{}{}　{:.2}%",
-                            format_value_with_base_100(index.now_value),
+                            format_value(index.now_value, 2),
                             get_change_value_char(index.change_value),
-                            format_value_with_base_100(index.change_value),
+                            format_value(index.change_value, 2),
                             index.change_rate
                         ));
                         e.image(format!(
@@ -35,10 +35,10 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                                 .unwrap_or_else(|_| 42)
                         ));
                         e.fields(vec![
-                            ("거래량(천주)", index.trading_volume.to_string(), true),
-                            ("거래대금(백만)", index.trading_value.to_string(), true),
-                            ("장중최고", index.high_value.to_string(), true),
-                            ("장중최저", index.low_value.to_string(), true),
+                            ("거래량(천주)", format_value(index.trading_volume, 0), true),
+                            ("거래대금(백만)", format_value(index.trading_value, 0), true),
+                            ("장중최고", format_value(index.high_value, 2), true),
+                            ("장중최저", format_value(index.low_value, 2), true),
                         ]);
                         e.footer(|f| {
                             f.text(index.state.to_string());
