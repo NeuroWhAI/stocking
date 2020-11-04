@@ -58,3 +58,54 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         }
     }
 }
+
+#[command]
+#[aliases("stock")]
+async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let code = args.rest().trim();
+
+    match api::get_stock(code).await {
+        Ok(stock) => {
+            msg.channel_id
+                .send_message(&ctx.http, |m| {
+                    m.embed(|e| {
+                        e.title(&stock.name);
+                        e.description(format!(
+                            "{}　{}{}　{:.2}%",
+                            format_value(stock.now_value, 0),
+                            get_change_value_char(stock.change_value()),
+                            format_value(stock.change_value(), 0),
+                            stock.change_rate()
+                        ));
+                        e.image(format!(
+                            "https://ssl.pstatic.net/imgfinance/chart/mobile/day/{}_end.png?sidcode={}",
+                            code,
+                            SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .map(|d| d.as_millis())
+                                .unwrap_or_else(|_| 42)
+                        ));
+                        e.fields(vec![
+                            ("거래량", format_value(stock.trading_volume, 0), true),
+                            ("거래대금(백만)", format_value(stock.trading_value / 1000000, 0), true),
+                            ("장중최고", format_value(stock.high_value, 0), true),
+                            ("장중최저", format_value(stock.low_value, 0), true),
+                        ]);
+                        e.footer(|f| {
+                            f.text(stock.state.to_string());
+                            f
+                        });
+                        e.color(get_change_value_color(stock.change_value()));
+                        e
+                    });
+                    m
+                })
+                .await?;
+            Ok(())
+        }
+        Err(err) => {
+            msg.reply(ctx, err.to_string()).await?;
+            Err(err.into())
+        }
+    }
+}
