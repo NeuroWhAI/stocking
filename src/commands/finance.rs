@@ -23,7 +23,7 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                             "{}　{}{}　{:.2}%",
                             format_value(index.now_value, 2),
                             get_change_value_char(index.change_value),
-                            format_value(index.change_value, 2),
+                            format_value(index.change_value.abs(), 2),
                             index.change_rate
                         ));
                         e.image(format!(
@@ -74,7 +74,7 @@ async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                             "{}　{}{}　{:.2}%",
                             format_value(stock.now_value, 0),
                             get_change_value_char(stock.change_value()),
-                            format_value(stock.change_value(), 0),
+                            format_value(stock.change_value().abs(), 0),
                             stock.change_rate()
                         ));
                         e.image(format!(
