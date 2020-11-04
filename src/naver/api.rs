@@ -41,14 +41,16 @@ pub async fn get_index(name: &str) -> Result<Index> {
     Ok(parse_response(json)?)
 }
 
-pub async fn get_stock(code: &str) -> Result<Index> {
-    let json: Value = reqwest::get(&format!(
+pub async fn get_stock(code: &str) -> Result<Stock> {
+    let text = reqwest::get(&format!(
         "{}api/realtime.nhn?query=SERVICE_ITEM:{}",
         HOST, code
     ))
     .await?
-    .json()
+    .text_with_charset("euc-kr")
     .await?;
+
+    let json = serde_json::from_str(&text)?;
 
     Ok(parse_response(json)?)
 }
