@@ -27,58 +27,58 @@ impl Display for MarketState {
 pub struct Index {
     /// 장 상태.
     #[serde(rename = "ms")]
-    pub(crate) state: MarketState,
+    pub state: MarketState,
 
     /// 현재가(0.01원).
     #[serde(rename = "nv")]
-    pub(crate) now_value: i64,
+    pub now_value: i64,
 
     /// 장중최고(0.01원).
     #[serde(rename = "hv")]
-    pub(crate) high_value: i64,
+    pub high_value: i64,
 
     /// 장중최저(0.01원).
     #[serde(rename = "lv")]
-    pub(crate) low_value: i64,
+    pub low_value: i64,
 
     /// 등락폭(0.01원).
     #[serde(rename = "cv")]
-    pub(crate) change_value: i64,
+    pub change_value: i64,
 
     /// 등락률(%).
     #[serde(rename = "cr")]
-    pub(crate) change_rate: f64,
+    pub change_rate: f64,
 
     /// 거래량(1000주).
     #[serde(rename = "aq")]
-    pub(crate) trading_volume: i64,
+    pub trading_volume: i64,
 
     /// 거래대금(백만원).
     #[serde(rename = "aa")]
-    pub(crate) trading_value: i64,
+    pub trading_value: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Stock {
     /// 이름.
     #[serde(rename = "nm")]
-    pub(crate) name: String,
+    pub name: String,
 
     /// 장 상태.
     #[serde(rename = "ms")]
-    pub(crate) state: MarketState,
+    pub state: MarketState,
 
     /// 현재가(1원).
     #[serde(rename = "nv")]
-    pub(crate) now_value: i64,
+    pub now_value: i64,
 
     /// 장중최고(1원).
     #[serde(rename = "hv")]
-    pub(crate) high_value: i64,
+    pub high_value: i64,
 
     /// 장중최저(1원).
     #[serde(rename = "lv")]
-    pub(crate) low_value: i64,
+    pub low_value: i64,
 
     /// 등락종류(1 ~ 5 : 상한가, 상승, 보합, 하한가, 하락).
     #[serde(rename = "rf")]
@@ -94,11 +94,11 @@ pub struct Stock {
 
     /// 거래량(1주).
     #[serde(rename = "aq")]
-    pub(crate) trading_volume: i64,
+    pub trading_volume: i64,
 
     /// 거래대금(1원).
     #[serde(rename = "aa")]
-    pub(crate) trading_value: i64,
+    pub trading_value: i64,
 }
 
 impl Stock {
