@@ -82,15 +82,15 @@ pub struct Stock {
 
     /// 등락종류(1 ~ 5 : 상한가, 상승, 보합, 하한가, 하락).
     #[serde(rename = "rf")]
-    change_type: String,
+    pub(super) change_type: String,
 
     /// 등락폭 절댓값(1원).
     #[serde(rename = "cv")]
-    change_value: i64,
+    pub(super) change_value: i64,
 
     /// 등락률 절댓값(%).
     #[serde(rename = "cr")]
-    change_rate: f64,
+    pub(super) change_rate: f64,
 
     /// 거래량(1주).
     #[serde(rename = "aq")]
