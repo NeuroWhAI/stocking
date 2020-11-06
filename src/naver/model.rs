@@ -32,7 +32,7 @@ pub struct Index {
     #[serde(rename = "ms")]
     pub state: MarketState,
 
-    /// 현재가(0.01원).
+    /// 현재가(0.01P).
     #[serde(rename = "nv")]
     pub now_value: i64,
 
@@ -131,9 +131,9 @@ struct IndexQuote {
     #[html(selector = "td.date", attr = "inner")]
     pub time: String,
 
-    /// 체결가(1원).
+    /// 체결가(1P).
     #[html(selector = "td:nth-child(2)", attr = "inner")]
-    pub price: CommaNumber<f64>,
+    pub value: CommaNumber<f64>,
 
     /// 거래량(1000주).
     #[html(selector = "td:nth-child(5)", attr = "inner")]
@@ -279,7 +279,7 @@ mod tests {
             cond,
             IndexQuote {
                 time: "15:32".into(),
-                price: 2343.31.into(),
+                value: 2343.31.into(),
                 trading_volume: 874016.into(),
                 trading_value: 10692707.into(),
             }
