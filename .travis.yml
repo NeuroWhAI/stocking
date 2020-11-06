@@ -1,0 +1,8 @@
+language: rust
+rust:
+  - stable
+cache:
+  directories:
+    - $TRAVIS_HOME/.cargo
+before_cache:
+  - rm -rf $TRAVIS_HOME/.cargo/registry
