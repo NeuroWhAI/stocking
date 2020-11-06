@@ -114,7 +114,7 @@ async fn main() {
         .group(&GENERAL_GROUP)
         .group(&FINANCE_GROUP);
 
-    let mut client = Client::new(&token)
+    let mut client = Client::builder(&token)
         .framework(framework)
         .event_handler(Handler)
         .await
