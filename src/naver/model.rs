@@ -1,6 +1,9 @@
 use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
+use unhtml_derive::FromHtml;
+
+use detail::CommaNumber;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MarketState {
@@ -121,9 +124,81 @@ impl Stock {
     }
 }
 
+#[derive(Debug, PartialEq, FromHtml)]
+#[html(selector = "tr")]
+struct IndexQuote {
+    /// 체결시각(HH:mm).
+    #[html(selector = "td.date", attr = "inner")]
+    pub time: String,
+
+    /// 체결가(1원).
+    #[html(selector = "td:nth-child(2)", attr = "inner")]
+    pub price: CommaNumber<f64>,
+
+    /// 거래량(1000주).
+    #[html(selector = "td:nth-child(5)", attr = "inner")]
+    pub trading_volume: CommaNumber<i64>,
+
+    /// 거래대금(백만원).
+    #[html(selector = "td:nth-child(6)", attr = "inner")]
+    pub trading_value: CommaNumber<i64>,
+}
+
+mod detail {
+    use std::str::FromStr;
+
+    #[derive(Debug, PartialEq)]
+    pub(super) struct CommaNumber<T>(T);
+
+    impl<T> From<T> for CommaNumber<T>
+    where
+        T: FromStr,
+    {
+        fn from(val: T) -> Self {
+            CommaNumber(val)
+        }
+    }
+
+    impl<T> unhtml::FromText for CommaNumber<T>
+    where
+        T: FromStr,
+    {
+        fn from_inner_text(select: unhtml::ElemIter) -> unhtml::Result<Self> {
+            let first = select.next().ok_or(())?;
+            let mut ret = String::new();
+            for next_segment in first.text() {
+                ret += next_segment.trim();
+            }
+            T::from_str(&ret.replace(',', ""))
+                .map(CommaNumber)
+                .map_err(|_| unhtml::Error::TextParseError {
+                    text: ret,
+                    type_name: "CommaNumber".into(),
+                    err: "TextParseError".into(),
+                })
+        }
+
+        fn from_attr(select: unhtml::ElemIter, attr: &str) -> unhtml::Result<Self> {
+            let first = select.next().ok_or(())?;
+            let attr = first
+                .value()
+                .attr(attr)
+                .ok_or((attr.to_owned(), first.html()))?;
+            T::from_str(&attr.trim().replace(',', ""))
+                .map(CommaNumber)
+                .map_err(|_| unhtml::Error::TextParseError {
+                    text: attr.trim().into(),
+                    type_name: "CommaNumber".into(),
+                    err: "TextParseError".into(),
+                })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use unhtml::FromHtml;
 
     #[test]
     fn parse_market_state() {
@@ -183,5 +258,31 @@ mod tests {
         );
         assert_eq!(stock.change_value(), -300);
         assert_eq!(stock.change_rate(), -0.51);
+    }
+
+    #[test]
+    fn parse_index_cond() {
+        let html = r#" <table><tr>
+        <td class="date">15:32</td>
+        <td class="number_1">2,343.31</td>
+        <td class="rate_down" style="padding-right:35px;">
+            <img src="..." width="7" height="6" style="margin-right:4px;" alt="상승">
+            <span class="tah p11 red02">43.15</span>
+        </td>
+        <td class="number_1">333</td>
+        <td class="number_1" style="padding-right:40px;">874,016</td>
+        <td class="number_1" style="padding-right:30px;">10,692,707</td>
+        </tr></table> "#;
+
+        let cond = IndexQuote::from_html(html).unwrap();
+        assert_eq!(
+            cond,
+            IndexQuote {
+                time: "15:32".into(),
+                price: 2343.31.into(),
+                trading_volume: 874016.into(),
+                trading_value: 10692707.into(),
+            }
+        );
     }
 }
