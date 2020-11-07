@@ -18,6 +18,7 @@ serde_json = "1.0"
 reqwest = "0.10"
 unhtml = "0.7"
 unhtml_derive = "0.7"
+chrono = "0.4"
 
 [dependencies.tokio]
 version = "0.2"

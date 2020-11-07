@@ -125,36 +125,63 @@ impl Stock {
 }
 
 #[derive(Debug, PartialEq, FromHtml)]
-struct IndexQuote {
+pub struct IndexQuote {
     /// 체결시각(HH:mm).
     #[html(selector = "td.date", attr = "inner")]
     pub time: String,
 
     /// 체결가(1P).
     #[html(selector = "td:nth-child(2)", attr = "inner")]
-    pub value: CommaNumber<f64>,
+    value: CommaNumber<f64>,
 
     /// 거래량(1000주).
     #[html(selector = "td:nth-child(5)", attr = "inner")]
-    pub trading_volume: CommaNumber<i64>,
+    trading_volume: CommaNumber<i64>,
 
     /// 거래대금(백만원).
     #[html(selector = "td:nth-child(6)", attr = "inner")]
-    pub trading_value: CommaNumber<i64>,
+    trading_value: CommaNumber<i64>,
 }
 
+impl IndexQuote {
+    /// 체결가(1P).
+    pub fn value(&self) -> f64 {
+        self.value.0
+    }
+    
+    /// 거래량(1000주).
+    pub fn trading_volume(&self) -> i64 {
+        self.trading_volume.0
+    }
+    
+    /// 거래대금(백만원).
+    pub fn trading_value(&self) -> i64 {
+        self.trading_value.0
+    }
+}
+
+/// 파싱을 위한 지수의 시세 페이지 모델.
+///
+/// 데이터 행이 아닌 tr이 있어서 Option으로 받아야하고
+/// 실제 API를 사용할 쪽의 편의를 위해 `IndexQuotePage`로 변환할 것임.
 #[derive(Debug, PartialEq, FromHtml)]
 #[html(selector = "table.type_1")]
-struct IndexQuotePage {
+pub(super) struct IndexQuotePageOpt {
     #[html(selector = "tr")]
-    pub quotes: Vec<Option<IndexQuote>>,
+    pub(super) quotes: Vec<Option<IndexQuote>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct IndexQuotePage {
+    pub quotes: Vec<IndexQuote>,
+    pub is_last: bool,
 }
 
 mod detail {
     use std::str::FromStr;
 
     #[derive(Debug, PartialEq)]
-    pub(super) struct CommaNumber<T>(T);
+    pub(super) struct CommaNumber<T>(pub(super) T);
 
     impl<T> From<T> for CommaNumber<T>
     where
@@ -295,7 +322,7 @@ mod tests {
     #[test]
     fn parse_index_quote_page() {
         let html = include_str!("res_test/index_sise.html");
-        let page = IndexQuotePage::from_html(html).unwrap();
+        let page = IndexQuotePageOpt::from_html(html).unwrap();
         assert_eq!(page.quotes.len(), 14);
         assert_eq!(page.quotes.iter().filter(|opt| opt.is_some()).count(), 6);
         assert_eq!(

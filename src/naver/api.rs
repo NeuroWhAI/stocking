@@ -1,10 +1,58 @@
 use anyhow::{bail, Result};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
+use unhtml::FromHtml;
+use chrono::NaiveDateTime;
 
 use super::model::*;
 
-const HOST: &str = "https://polling.finance.naver.com/";
+const HOST_POLL: &str = "https://polling.finance.naver.com/";
+const HOST_FINANCE: &str = "https://finance.naver.com/";
+
+pub async fn get_index(name: &str) -> Result<Index> {
+    let json: Value = reqwest::get(&format!(
+        "{}api/realtime.nhn?query=SERVICE_INDEX:{}",
+        HOST_POLL, name
+    ))
+    .await?
+    .json()
+    .await?;
+
+    Ok(parse_response(json)?)
+}
+
+pub async fn get_stock(code: &str) -> Result<Stock> {
+    let text = reqwest::get(&format!(
+        "{}api/realtime.nhn?query=SERVICE_ITEM:{}",
+        HOST_POLL, code
+    ))
+    .await?
+    .text_with_charset("euc-kr")
+    .await?;
+
+    let json = serde_json::from_str(&text)?;
+
+    Ok(parse_response(json)?)
+}
+
+pub async fn get_index_quotes(name: &str, date_and_max_time: &NaiveDateTime, page: usize) -> Result<IndexQuotePage> {
+    let html = reqwest::get(&format!(
+        "{}sise/sise_index_time.nhn?code={}&thistime={}&page={}",
+        HOST_FINANCE, name, date_and_max_time.format("%Y%m%d%H%M%S"), page
+    ))
+    .await?
+    .text_with_charset("euc-kr")
+    .await?;
+
+    let page = IndexQuotePageOpt::from_html(&html)?;
+    Ok(IndexQuotePage {
+        quotes: page.quotes
+            .into_iter()
+            .filter_map(|opt| opt)
+            .collect(),
+        is_last: !html.contains("pgRR"),
+    })
+}
 
 fn parse_response<T>(mut json: Value) -> Result<T>
 where
@@ -27,32 +75,6 @@ where
     } else {
         bail!("{}", json["resultCode"])
     }
-}
-
-pub async fn get_index(name: &str) -> Result<Index> {
-    let json: Value = reqwest::get(&format!(
-        "{}api/realtime.nhn?query=SERVICE_INDEX:{}",
-        HOST, name
-    ))
-    .await?
-    .json()
-    .await?;
-
-    Ok(parse_response(json)?)
-}
-
-pub async fn get_stock(code: &str) -> Result<Stock> {
-    let text = reqwest::get(&format!(
-        "{}api/realtime.nhn?query=SERVICE_ITEM:{}",
-        HOST, code
-    ))
-    .await?
-    .text_with_charset("euc-kr")
-    .await?;
-
-    let json = serde_json::from_str(&text)?;
-
-    Ok(parse_response(json)?)
 }
 
 #[cfg(test)]
