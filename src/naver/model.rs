@@ -125,7 +125,6 @@ impl Stock {
 }
 
 #[derive(Debug, PartialEq, FromHtml)]
-#[html(selector = "tr")]
 struct IndexQuote {
     /// 체결시각(HH:mm).
     #[html(selector = "td.date", attr = "inner")]
@@ -142,6 +141,13 @@ struct IndexQuote {
     /// 거래대금(백만원).
     #[html(selector = "td:nth-child(6)", attr = "inner")]
     pub trading_value: CommaNumber<i64>,
+}
+
+#[derive(Debug, PartialEq, FromHtml)]
+#[html(selector = "table.type_1")]
+struct IndexQuotePage {
+    #[html(selector = "tr")]
+    pub quotes: Vec<Option<IndexQuote>>,
 }
 
 mod detail {
@@ -261,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_index_cond() {
+    fn parse_index_quote() {
         let html = r#" <table><tr>
         <td class="date">15:32</td>
         <td class="number_1">2,343.31</td>
@@ -282,6 +288,32 @@ mod tests {
                 value: 2343.31.into(),
                 trading_volume: 874016.into(),
                 trading_value: 10692707.into(),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_index_quote_page() {
+        let html = include_str!("res_test/index_sise.html");
+        let page = IndexQuotePage::from_html(html).unwrap();
+        assert_eq!(page.quotes.len(), 14);
+        assert_eq!(page.quotes.iter().filter(|opt| opt.is_some()).count(), 6);
+        assert_eq!(
+            page.quotes[2].as_ref().unwrap(),
+            &IndexQuote {
+                time: "15:32".into(),
+                value: 2343.31.into(),
+                trading_volume: 874016.into(),
+                trading_value: 10692707.into(),
+            }
+        );
+        assert_eq!(
+            page.quotes[11].as_ref().unwrap(),
+            &IndexQuote {
+                time: "15:27".into(),
+                value: 2343.25.into(),
+                trading_volume: 861767.into(),
+                trading_value: 10426325.into(),
             }
         );
     }
