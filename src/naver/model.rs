@@ -36,15 +36,15 @@ pub struct Index {
     #[serde(rename = "nv")]
     pub now_value: i64,
 
-    /// 장중최고(0.01원).
+    /// 장중최고(0.01P).
     #[serde(rename = "hv")]
     pub high_value: i64,
 
-    /// 장중최저(0.01원).
+    /// 장중최저(0.01P).
     #[serde(rename = "lv")]
     pub low_value: i64,
 
-    /// 등락폭(0.01원).
+    /// 등락폭(0.01P).
     #[serde(rename = "cv")]
     pub change_value: i64,
 
@@ -148,12 +148,12 @@ impl IndexQuote {
     pub fn value(&self) -> f64 {
         self.value.0
     }
-    
+
     /// 거래량(1000주).
     pub fn trading_volume(&self) -> i64 {
         self.trading_volume.0
     }
-    
+
     /// 거래대금(백만원).
     pub fn trading_value(&self) -> i64 {
         self.trading_value.0

@@ -1,5 +1,6 @@
 mod client_data;
 mod commands;
+mod market;
 mod naver;
 mod trader;
 mod util;
@@ -30,6 +31,7 @@ use serenity::{
 use client_data::*;
 use commands::basic::*;
 use commands::finance::*;
+use market::Market;
 
 struct Handler;
 
@@ -84,15 +86,29 @@ async fn main() {
 
     let http = Arc::new(Http::new_with_token(&token));
 
-    let (tx_quit, rx_quit) = mpsc::channel();
+    let mut quit_channels = Vec::new();
     let mut traders = Vec::new();
+
+    let market_one = Arc::new(RwLock::new(Market::new()));
 
     // Start traders.
     {
+        let (tx_quit, rx_quit) = mpsc::channel();
         let discord = Arc::clone(&http);
+        let market = Arc::clone(&market_one);
         let handle = tokio::spawn(async move {
-            trader::notify_market_state(discord, main_channel, rx_quit).await
+            trader::update_market(discord, main_channel, rx_quit, market).await
         });
+        quit_channels.push(tx_quit);
+        traders.push(handle);
+
+        let (tx_quit, rx_quit) = mpsc::channel();
+        let discord = Arc::clone(&http);
+        let market = Arc::clone(&market_one);
+        let handle = tokio::spawn(async move {
+            trader::notify_market_state(discord, main_channel, rx_quit, market).await
+        });
+        quit_channels.push(tx_quit);
         traders.push(handle);
     }
 
@@ -138,7 +154,7 @@ async fn main() {
         error!("Client error: {:?}", why);
     }
 
-    for _ in 0..traders.len() {
+    for tx_quit in quit_channels {
         tx_quit.send(()).unwrap();
     }
     join_all(traders).await;
