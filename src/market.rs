@@ -82,6 +82,10 @@ impl Market {
     pub fn get_share(&self, code: &str) -> Option<&Share> {
         self.shares.get(code)
     }
+
+    pub fn remove_share(&mut self, code: &str) -> Option<Share> {
+        self.shares.remove(code)
+    }
 }
 
 #[derive(Debug, PartialEq)]

@@ -138,7 +138,8 @@ async fn main() {
 
     {
         let mut data = client.data.write().await;
-        data.insert::<ShardManagerContainer>(client.shard_manager.clone());
+        data.insert::<ShardManagerContainer>(Arc::clone(&client.shard_manager));
+        data.insert::<MarketContainer>(Arc::clone(&market_one));
     }
 
     let shard_manager = client.shard_manager.clone();
