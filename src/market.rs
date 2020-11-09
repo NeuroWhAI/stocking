@@ -115,10 +115,6 @@ impl Graph {
         }
     }
 
-    pub(crate) fn latest(&self) -> Option<&Quote> {
-        self.quotes.last()
-    }
-
     pub(crate) fn len(&self) -> usize {
         self.quotes.len()
     }
