@@ -45,24 +45,10 @@ pub(crate) async fn update_market(
 
         if !prev_on_work && on_work {
             prev_on_work = true;
-
-            let result = channel
-                .send_message(&discord, |m| m.content("시장 추적 시작."))
-                .await;
-
-            if let Err(err) = result {
-                error!("{}", err);
-            }
+            info!("시장 추적 시작.");
         } else if prev_on_work && !on_work {
             prev_on_work = false;
-
-            let result = channel
-                .send_message(&discord, |m| m.content("시장 추적 종료."))
-                .await;
-
-            if let Err(err) = result {
-                error!("{}", err);
-            }
+            info!("시장 추적 종료.");
         }
 
         if !on_work {
