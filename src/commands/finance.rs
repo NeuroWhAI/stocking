@@ -11,6 +11,7 @@ use crate::util::*;
 use crate::{client_data::MarketContainer, naver::api};
 
 #[command]
+#[owners_only]
 #[aliases("index")]
 async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let name = args.rest().trim();
@@ -95,6 +96,7 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
+#[owners_only]
 #[aliases("stock")]
 async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let code = args.rest().trim();
