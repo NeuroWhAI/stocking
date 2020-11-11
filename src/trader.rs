@@ -25,12 +25,19 @@ pub(crate) async fn update_market(
     // 초기화.
     {
         for &code in &["KOSPI", "KOSDAQ"] {
-            let index = api::get_index(code)
-                .await
-                .expect(&format!("Init {}", code));
+            let not_exists = {
+                let market = market.read().await;
+                !market.contains(code)
+            };
+            
+            if not_exists {
+                let index = api::get_index(code)
+                    .await
+                    .expect(&format!("Init {}", code));
 
-            let mut market = market.write().await;
-            market.add_or_update_index(code, &index);
+                let mut market = market.write().await;
+                market.add_or_update_index(code, &index);
+            }
         }
     }
 

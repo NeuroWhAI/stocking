@@ -90,6 +90,10 @@ impl Market {
     pub fn remove_share(&mut self, code: &str) -> Option<Share> {
         self.shares.remove(code)
     }
+
+    pub fn contains(&self, code: &str) -> bool {
+        self.shares.contains_key(code)
+    }
 }
 
 #[derive(Debug, PartialEq)]
