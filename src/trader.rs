@@ -24,10 +24,14 @@ pub(crate) async fn update_market(
 
     // 초기화.
     {
-        let index = api::get_index("KOSPI").await.expect("Init KOSPI");
+        for &code in &["KOSPI", "KOSDAQ"] {
+            let index = api::get_index(code)
+                .await
+                .expect(&format!("Init {}", code));
 
-        let mut market = market.write().await;
-        market.add_or_update_index("KOSPI", &index);
+            let mut market = market.write().await;
+            market.add_or_update_index(code, &index);
+        }
     }
 
     let mut prev_on_work = false;
@@ -150,47 +154,49 @@ pub(crate) async fn notify_market_state(
             break;
         }
 
-        let data: Option<_> = {
-            let market = market.read().await;
-            market.get_share("KOSPI").map(|share| {
-                (
-                    share.state,
-                    share.value,
-                    share.change_value,
-                    share.change_rate,
-                )
-            })
-        };
+        for &code in &["KOSPI", "KOSDAQ"] {
+            let data: Option<_> = {
+                let market = market.read().await;
+                market.get_share(code).map(|share| {
+                    (
+                        share.state,
+                        share.value,
+                        share.change_value,
+                        share.change_rate,
+                    )
+                })
+            };
 
-        if let Some((state, value, change_value, change_rate)) = data {
-            if let Some(prev_state) = &prev_state {
-                if *prev_state != state {
-                    // 장 알림 전송.
-                    let msg_result = ChannelId(channel_id)
-                        .send_message(&discord, |m| {
-                            m.embed(|e| {
-                                e.title(format!("KOSPI {}", state));
-                                e.description(format!(
-                                    "{}　{}{}　{:.2}%",
-                                    format_value(value, 2),
-                                    get_change_value_char(change_value),
-                                    format_value(change_value, 2),
-                                    change_rate
-                                ));
-                                e.color(get_change_value_color(change_value));
-                                e
-                            });
-                            m
-                        })
-                        .await;
+            if let Some((state, value, change_value, change_rate)) = data {
+                if let Some(prev_state) = &prev_state {
+                    if *prev_state != state {
+                        // 장 알림 전송.
+                        let msg_result = ChannelId(channel_id)
+                            .send_message(&discord, |m| {
+                                m.embed(|e| {
+                                    e.title(format!("{} {}", code, state));
+                                    e.description(format!(
+                                        "{}　{}{}　{:+.2}%",
+                                        format_value(value, 2),
+                                        get_change_value_char(change_value),
+                                        format_value(change_value, 2),
+                                        change_rate
+                                    ));
+                                    e.color(get_change_value_color(change_value));
+                                    e
+                                });
+                                m
+                            })
+                            .await;
 
-                    match msg_result {
-                        Err(err) => error!("{}", err),
-                        _ => {}
+                        match msg_result {
+                            Err(err) => error!("{}", err),
+                            _ => {}
+                        }
                     }
                 }
+                prev_state = Some(state);
             }
-            prev_state = Some(state);
         }
 
         time::delay_for(std::time::Duration::from_millis(3000)).await;

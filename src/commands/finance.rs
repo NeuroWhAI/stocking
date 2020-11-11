@@ -25,7 +25,7 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     m.embed(|e| {
                         e.title(name);
                         e.description(format!(
-                            "{}　{}{}　{:.2}%",
+                            "{}　{}{}　{:+.2}%",
                             format_value(index.now_value, 2),
                             get_change_value_char(index.change_value),
                             format_value(index.change_value.abs(), 2),
