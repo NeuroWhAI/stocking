@@ -36,6 +36,10 @@ impl Market {
         self.shares.keys().collect()
     }
 
+    pub fn share_codes_with_kind(&self) -> Vec<(&String, ShareKind)> {
+        self.shares.iter().map(|(code, share)| (code, share.kind)).collect()
+    }
+
     pub fn add_or_update_index(&mut self, code: &str, index: &Index) {
         let share = self.shares.get_mut(code);
         if let Some(share) = share {

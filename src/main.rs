@@ -5,12 +5,7 @@ mod naver;
 mod trader;
 mod util;
 
-use std::{
-    collections::HashSet,
-    env,
-    sync::mpsc::{self},
-    sync::Arc,
-};
+use std::{collections::HashSet, env, sync::mpsc, sync::Arc};
 
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -27,11 +22,16 @@ use serenity::{
     model::prelude::*,
     prelude::*,
 };
+use tokio::{
+    fs::OpenOptions,
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+};
 
 use client_data::*;
 use commands::basic::*;
 use commands::finance::*;
-use market::Market;
+use market::{Market, ShareKind};
+use naver::api;
 
 struct Handler;
 
@@ -68,7 +68,7 @@ async fn my_help(
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     // This will load the environment variables located at `./.env`.
     dotenv::dotenv().expect("Failed to load .env file");
 
@@ -90,6 +90,42 @@ async fn main() {
     let mut traders = Vec::new();
 
     let market_one = Arc::new(RwLock::new(Market::new()));
+
+    // Load my index.
+    let index_path = "my_index.txt";
+    if let Ok(index_file) = OpenOptions::new().read(true).open(index_path).await {
+        let mut index_lines = BufReader::new(index_file).lines();
+        let mut market = market_one.write().await;
+
+        while let Ok(Some(code)) = index_lines.next_line().await {
+            if !code.is_empty() {
+                info!("Load index {}", code);
+                let index = api::get_index(&code)
+                    .await
+                    .expect(&format!("Load {}", code));
+
+                market.add_or_update_index(&code, &index);
+            }
+        }
+    }
+
+    // Load my stock.
+    let stock_path = "my_stock.txt";
+    /*if let Ok(stock_file) = OpenOptions::new().read(true).open(stock_path).await {
+        let mut stock_lines = BufReader::new(stock_file).lines();
+        let mut market = market_one.write().await;
+
+        while let Ok(Some(code)) = stock_lines.next_line().await {
+            if !code.is_empty() {
+                info!("Load stock {}", code);
+                let stock = api::get_stock(&code)
+                    .await
+                    .expect(&format!("Load {}", code));
+
+                market.add_or_update_stock(&code, &stock);
+            }
+        }
+    }*/
 
     // Start traders.
     {
@@ -159,4 +195,23 @@ async fn main() {
         tx_quit.send(()).unwrap();
     }
     join_all(traders).await;
+
+    // Save my index.
+    for &(path, target_kind) in &[
+        (index_path, ShareKind::Index),
+        (stock_path, ShareKind::Stock),
+    ] {
+        if let Ok(mut file) = OpenOptions::new().write(true).create(true).open(path).await {
+            let market = market_one.read().await;
+
+            for (code, kind) in market.share_codes_with_kind() {
+                if kind == target_kind {
+                    file.write_all(code.as_bytes()).await?;
+                    file.write_all(b"\n").await?;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
