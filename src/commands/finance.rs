@@ -31,6 +31,10 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                             format_value(index.change_value.abs(), 2),
                             index.change_rate
                         ));
+                        e.thumbnail(format!(
+                            "https://ssl.pstatic.net/imgfinance/chart/mobile/candle/day/{}_end.png",
+                            name,
+                        ));
                         e.image(format!(
                             "https://ssl.pstatic.net/imgstock/chart3/day/{}.png?sidcode={}",
                             name,
@@ -113,6 +117,10 @@ async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                             get_change_value_char(stock.change_value()),
                             format_value(stock.change_value().abs(), 0),
                             stock.change_rate()
+                        ));
+                        e.thumbnail(format!(
+                            "https://ssl.pstatic.net/imgfinance/chart/mobile/candle/day/{}_end.png",
+                            code,
                         ));
                         e.image(format!(
                             "https://ssl.pstatic.net/imgfinance/chart/mobile/day/{}_end.png?sidcode={}",
