@@ -1,4 +1,7 @@
-use std::sync::{mpsc::Receiver, Arc};
+use std::{
+    collections::HashMap,
+    sync::{mpsc::Receiver, Arc},
+};
 
 use chrono::{Datelike, Duration, FixedOffset, Timelike, Utc};
 use serenity::{http::Http, model::id::ChannelId, prelude::RwLock};
@@ -29,11 +32,9 @@ pub(crate) async fn update_market(
                 let market = market.read().await;
                 !market.contains(code)
             };
-            
+
             if not_exists {
-                let index = api::get_index(code)
-                    .await
-                    .expect(&format!("Init {}", code));
+                let index = api::get_index(code).await.expect(&format!("Init {}", code));
 
                 let mut market = market.write().await;
                 market.add_or_update_index(code, &index);
@@ -154,7 +155,7 @@ pub(crate) async fn notify_market_state(
 ) {
     info!("Start");
 
-    let mut prev_state = None;
+    let mut prev_states = HashMap::new();
 
     loop {
         if let Ok(_) = rx_quit.try_recv() {
@@ -175,7 +176,7 @@ pub(crate) async fn notify_market_state(
             };
 
             if let Some((state, value, change_value, change_rate)) = data {
-                if let Some(prev_state) = &prev_state {
+                if let Some(prev_state) = prev_states.get(code) {
                     if *prev_state != state {
                         // 장 알림 전송.
                         let msg_result = ChannelId(channel_id)
@@ -202,7 +203,7 @@ pub(crate) async fn notify_market_state(
                         }
                     }
                 }
-                prev_state = Some(state);
+                prev_states.insert(code, state);
             }
         }
 
