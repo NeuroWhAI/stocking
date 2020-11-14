@@ -107,7 +107,7 @@ async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     match api::get_stock(code).await {
         Ok(stock) => {
-            msg.channel_id
+            let response = msg.channel_id
                 .send_message(&ctx.http, |m| {
                     m.embed(|e| {
                         e.title(&stock.name);
@@ -146,6 +146,37 @@ async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     m
                 })
                 .await?;
+
+            // 선택용 이모지 달기.
+            let emoji_add = '⭐';
+            let emoji_del = '❌';
+            let emoji_add = response.react(&ctx, emoji_add).await?;
+            let emoji_del = response.react(&ctx, emoji_del).await?;
+
+            // 응답 대기
+            let answer = response
+                .await_reaction(&ctx)
+                .timeout(Duration::from_secs(30))
+                .author_id(msg.author.id)
+                .await;
+            if let Some(answer) = answer {
+                let data = ctx.data.read().await;
+                if let Some(market) = data.get::<MarketContainer>() {
+                    let mut market = market.write().await;
+                    let emoji = &answer.as_inner_ref().emoji;
+                    if *emoji == emoji_add.emoji {
+                        // 내 마켓에 종목 추가.
+                        market.add_or_update_stock(code, &stock);
+                    } else if *emoji == emoji_del.emoji {
+                        // 내 마켓에서 종목 삭제.
+                        market.remove_share(code);
+                    }
+                }
+            }
+
+            // 선택 이모지 삭제.
+            join_all(vec![emoji_add.delete_all(&ctx), emoji_del.delete_all(&ctx)]).await;
+
             Ok(())
         }
         Err(err) => {
