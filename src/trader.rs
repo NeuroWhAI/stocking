@@ -15,14 +15,11 @@ use crate::{
 };
 
 pub(crate) async fn update_market(
-    discord: Arc<Http>,
-    channel_id: u64,
     rx_quit: Receiver<()>,
     market: Arc<RwLock<Market>>,
 ) {
     info!("Start");
 
-    let channel = ChannelId(channel_id);
     let time_zone = FixedOffset::east(9 * 3600);
 
     // 초기화.
@@ -73,70 +70,91 @@ pub(crate) async fn update_market(
             market
                 .read()
                 .await
-                .share_codes()
+                .share_codes_with_kind()
                 .into_iter()
-                .map(|s| s.clone())
+                .map(|(code, kind)| (code.clone(), kind))
                 .collect()
         };
 
-        for code in codes {
-            let kind = {
-                let market = market.read().await;
-                let share = market.get_share(&code);
-                share.map(|s| s.kind)
-            };
-
-            if let Some(kind) = kind {
-                match kind {
-                    ShareKind::Index => {
-                        let index = api::get_index(&code).await;
-                        match index {
-                            Ok(index) => {
-                                let mut market = market.write().await;
-                                market.add_or_update_index(&code, &index);
-                            }
-                            Err(err) => error!("{}", err),
+        for (code, kind) in codes {
+            match kind {
+                ShareKind::Index => {
+                    let index = api::get_index(&code).await;
+                    match index {
+                        Ok(index) => {
+                            let mut market = market.write().await;
+                            market.add_or_update_index(&code, &index);
                         }
+                        Err(err) => error!("{}", err),
+                    }
+                }
+                ShareKind::Stock => {
+                    let stock = api::get_stock(&code).await;
+                    match stock {
+                        Ok(stock) => {
+                            let mut market = market.write().await;
+                            market.add_or_update_stock(&code, &stock);
+                        }
+                        Err(err) => error!("{}", err),
+                    }
+                }
+            }
 
-                        let mut date_time = (Utc::now().naive_utc() + time_zone)
-                            .date()
-                            .and_hms(23, 59, 59);
-                        let mut time_jump_cnt = 0;
-                        let mut page_num = 1;
-                        let mut graph_len = 0;
+            let mut date_time = (Utc::now().naive_utc() + time_zone)
+                .date()
+                .and_hms(23, 59, 59);
+            let mut time_jump_cnt = 0;
+            let mut page_num = 1;
+            let mut graph_len = 0;
 
-                        while graph_len < 60 && time_jump_cnt <= 10 {
-                            // 추가 요청시 딜레이.
-                            if page_num > 1 || time_jump_cnt > 0 {
-                                time::delay_for(std::time::Duration::from_millis(200)).await;
-                            }
+            while graph_len < 120 && time_jump_cnt <= 10 {
+                // 추가 요청시 딜레이.
+                if page_num > 1 || time_jump_cnt > 0 {
+                    time::delay_for(std::time::Duration::from_millis(200)).await;
+                }
 
-                            debug!("get_index_quotes({}, {}, {})", &code, &date_time, &page_num);
+                debug!("Get quotes: {}, {}, {}", code, date_time, page_num);
+
+                // 그래프 갱신 및 마지막 페이지 여부 확인.
+                let is_last = {
+                    let mut market = market.write().await;
+                    match kind {
+                        ShareKind::Index => {
                             let page = api::get_index_quotes(&code, &date_time, page_num).await;
-                            match page {
-                                Ok(page) => {
-                                    if page.is_last {
-                                        page_num = 1;
-                                        date_time -= Duration::days(1);
-                                        time_jump_cnt += 1;
-                                    } else {
-                                        page_num += 1;
-                                    }
-
-                                    let mut market = market.write().await;
-                                    market.update_index_graph(&code, &page, &date_time.date());
-
-                                    graph_len =
-                                        market.get_share(&code).map(|s| s.graph.len()).unwrap_or(0);
-                                }
-                                Err(err) => {
-                                    error!("{}", err);
-                                    graph_len += 6; // 무한 루프 방지를 위해 이렇게 하고 재시도.
-                                }
-                            }
+                            page.and_then(|page| {
+                                market.update_index_graph(&code, &page, &date_time.date());
+                                Ok(page.is_last)
+                            })
+                        }
+                        ShareKind::Stock => {
+                            let page = api::get_stock_quotes(&code, &date_time, page_num).await;
+                            page.and_then(|page| {
+                                market.update_stock_graph(&code, &page, &date_time.date());
+                                Ok(page.is_last)
+                            })
                         }
                     }
-                    ShareKind::Stock => todo!(), // TODO:
+                };
+
+                match is_last {
+                    Ok(is_last) => {
+                        let market = market.read().await;
+                        graph_len = market.get_share(&code).map(|s| s.graph.len()).unwrap_or(0);
+
+                        // 다음 페이지를 선택하되 마지막 페이지라면 더 전날로 이동.
+                        if is_last {
+                            page_num = 1;
+                            date_time -= Duration::days(1);
+                            time_jump_cnt += 1;
+                        } else {
+                            page_num += 1;
+                        }
+                    }
+                    Err(err) => {
+                        error!("{}", err);
+                        graph_len += 10; // 무한 루프 방지를 위해 이렇게 하고 재시도.
+                        time::delay_for(std::time::Duration::from_millis(5000)).await;
+                    }
                 }
             }
         }

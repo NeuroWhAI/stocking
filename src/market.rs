@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 
-use crate::naver::model::{Index, IndexQuotePage, MarketState};
+use crate::naver::model::{Index, IndexQuotePage, MarketState, Stock, StockQuotePage};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum ShareKind {
@@ -66,6 +66,32 @@ impl Market {
         }
     }
 
+    pub fn add_or_update_stock(&mut self, code: &str, stock: &Stock) {
+        let share = self.shares.get_mut(code);
+        if let Some(share) = share {
+            share.name = stock.name.clone();
+            share.state = stock.state;
+            share.value = stock.now_value;
+            share.change_value = stock.change_value();
+            share.change_rate = stock.change_rate();
+            share.trading_volume = stock.trading_volume;
+        } else {
+            self.shares.insert(
+                code.into(),
+                Share {
+                    kind: ShareKind::Stock,
+                    name: stock.name.clone(),
+                    state: stock.state,
+                    value: stock.now_value,
+                    change_value: stock.change_value(),
+                    change_rate: stock.change_rate(),
+                    trading_volume: stock.trading_volume,
+                    graph: Graph::new(),
+                },
+            );
+        }
+    }
+
     pub fn update_index_graph(&mut self, code: &str, page: &IndexQuotePage, date: &NaiveDate) {
         let share = self.shares.get_mut(code);
         if let Some(share) = share {
@@ -76,7 +102,22 @@ impl Market {
                         time: date.and_time(time),
                         value: (quote.value() * 100.0).round() as i64,
                         trading_volume: quote.trading_volume(),
-                        trading_value: quote.trading_value(),
+                    });
+                }
+            }
+        }
+    }
+
+    pub fn update_stock_graph(&mut self, code: &str, page: &StockQuotePage, date: &NaiveDate) {
+        let share = self.shares.get_mut(code);
+        if let Some(share) = share {
+            for quote in &page.quotes {
+                let time = NaiveTime::parse_from_str(&quote.time, "%H:%M");
+                if let Ok(time) = time {
+                    share.graph.update(Quote {
+                        time: date.and_time(time),
+                        value: quote.value(),
+                        trading_volume: quote.trading_volume(),
                     });
                 }
             }
@@ -101,7 +142,6 @@ pub(crate) struct Quote {
     time: NaiveDateTime,
     value: i64,
     trading_volume: i64,
-    trading_value: i64,
 }
 
 pub(crate) struct Graph {

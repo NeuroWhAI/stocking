@@ -111,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Load my stock.
     let stock_path = "my_stock.txt";
-    /*if let Ok(stock_file) = OpenOptions::new().read(true).open(stock_path).await {
+    if let Ok(stock_file) = OpenOptions::new().read(true).open(stock_path).await {
         let mut stock_lines = BufReader::new(stock_file).lines();
         let mut market = market_one.write().await;
 
@@ -125,15 +125,14 @@ async fn main() -> anyhow::Result<()> {
                 market.add_or_update_stock(&code, &stock);
             }
         }
-    }*/
+    }
 
     // Start traders.
     {
         let (tx_quit, rx_quit) = mpsc::channel();
-        let discord = Arc::clone(&http);
         let market = Arc::clone(&market_one);
         let handle = tokio::spawn(async move {
-            trader::update_market(discord, main_channel, rx_quit, market).await
+            trader::update_market(rx_quit, market).await
         });
         quit_channels.push(tx_quit);
         traders.push(handle);

@@ -137,10 +137,6 @@ pub struct IndexQuote {
     /// 거래량(1000주).
     #[html(selector = "td:nth-child(5)", attr = "inner")]
     trading_volume: CommaNumber<i64>,
-
-    /// 거래대금(백만원).
-    #[html(selector = "td:nth-child(6)", attr = "inner")]
-    trading_value: CommaNumber<i64>,
 }
 
 impl IndexQuote {
@@ -152,11 +148,6 @@ impl IndexQuote {
     /// 거래량(1000주).
     pub fn trading_volume(&self) -> i64 {
         self.trading_volume.0
-    }
-
-    /// 거래대금(백만원).
-    pub fn trading_value(&self) -> i64 {
-        self.trading_value.0
     }
 }
 
@@ -358,7 +349,6 @@ mod tests {
                 time: "15:32".into(),
                 value: 2343.31.into(),
                 trading_volume: 874016.into(),
-                trading_value: 10692707.into(),
             }
         );
     }
@@ -375,7 +365,6 @@ mod tests {
                 time: "15:32".into(),
                 value: 2343.31.into(),
                 trading_volume: 874016.into(),
-                trading_value: 10692707.into(),
             }
         );
         assert_eq!(
@@ -384,7 +373,6 @@ mod tests {
                 time: "15:27".into(),
                 value: 2343.25.into(),
                 trading_volume: 861767.into(),
-                trading_value: 10426325.into(),
             }
         );
     }
