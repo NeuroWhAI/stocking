@@ -177,6 +177,50 @@ pub struct IndexQuotePage {
     pub is_last: bool,
 }
 
+#[derive(Debug, PartialEq, FromHtml)]
+pub struct StockQuote {
+    /// 체결시각(HH:mm).
+    #[html(selector = "td:nth-child(1)", attr = "inner")]
+    pub time: String,
+
+    /// 체결가(1원).
+    #[html(selector = "td:nth-child(2)", attr = "inner")]
+    value: CommaNumber<i64>,
+
+    /// 거래량(1주).
+    #[html(selector = "td:nth-child(6)", attr = "inner")]
+    trading_volume: CommaNumber<i64>,
+}
+
+impl StockQuote {
+    /// 체결가(1원).
+    pub fn value(&self) -> i64 {
+        self.value.0
+    }
+
+    /// 거래량(1주).
+    pub fn trading_volume(&self) -> i64 {
+        self.trading_volume.0
+    }
+}
+
+/// 파싱을 위한 종목의 시세 페이지 모델.
+///
+/// 데이터 행이 아닌 tr이 있어서 Option으로 받아야하고
+/// 실제 API를 사용할 쪽의 편의를 위해 `StockQuotePage`로 변환할 것임.
+#[derive(Debug, PartialEq, FromHtml)]
+#[html(selector = "table.type2")]
+pub(super) struct StockQuotePageOpt {
+    #[html(selector = "tr")]
+    pub(super) quotes: Vec<Option<StockQuote>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StockQuotePage {
+    pub quotes: Vec<StockQuote>,
+    pub is_last: bool,
+}
+
 mod detail {
     use std::str::FromStr;
 
@@ -341,6 +385,56 @@ mod tests {
                 value: 2343.25.into(),
                 trading_volume: 861767.into(),
                 trading_value: 10426325.into(),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_stock_quote() {
+        let html = r#" <table><tr>
+        <td align="center"><span class="tah p10 gray03">15:30</span></td>
+        <td class="num"><span class="tah p11">63,200</span></td>
+        <td class="num">
+            <img src="..." width="7" height="6" style="margin-right:4px;" alt="상승">
+            <span class="tah p11 red02">2,200</span>
+        </td>
+        <td class="num"><span class="tah p11">63,200</span></td>
+        <td class="num"><span class="tah p11">63,100</span></td>
+        <td class="num"><span class="tah p11">31,220,915</span></td>
+        <td class="num"><span class="tah p11">2,413,850</span></td>
+        </tr></table> "#;
+
+        let cond = StockQuote::from_html(html).unwrap();
+        assert_eq!(
+            cond,
+            StockQuote {
+                time: "15:30".into(),
+                value: 63200.into(),
+                trading_volume: 31220915.into(),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_stock_quote_page() {
+        let html = include_str!("res_test/stock_sise.html");
+        let page = StockQuotePageOpt::from_html(html).unwrap();
+        assert_eq!(page.quotes.len(), 16);
+        assert_eq!(page.quotes.iter().filter(|opt| opt.is_some()).count(), 10);
+        assert_eq!(
+            page.quotes[2].as_ref().unwrap(),
+            &StockQuote {
+                time: "15:58".into(),
+                value: 63200.into(),
+                trading_volume: 31309570.into(),
+            }
+        );
+        assert_eq!(
+            page.quotes[14].as_ref().unwrap(),
+            &StockQuote {
+                time: "15:49".into(),
+                value: 63200.into(),
+                trading_volume: 31301923.into(),
             }
         );
     }
