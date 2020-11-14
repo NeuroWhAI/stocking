@@ -54,6 +54,25 @@ pub async fn get_index_quotes(name: &str, date_and_max_time: &NaiveDateTime, pag
     })
 }
 
+pub async fn get_stock_quotes(code: &str, date_and_max_time: &NaiveDateTime, page: usize) -> Result<StockQuotePage> {
+    let html = reqwest::get(&format!(
+        "{}item/sise_time.nhn?code={}&thistime={}&page={}",
+        HOST_FINANCE, code, date_and_max_time.format("%Y%m%d%H%M%S"), page
+    ))
+    .await?
+    .text_with_charset("euc-kr")
+    .await?;
+
+    let page = StockQuotePageOpt::from_html(&html)?;
+    Ok(StockQuotePage {
+        quotes: page.quotes
+            .into_iter()
+            .filter_map(|opt| opt)
+            .collect(),
+        is_last: !html.contains("pgRR"),
+    })
+}
+
 fn parse_response<T>(mut json: Value) -> Result<T>
 where
     T: DeserializeOwned,
