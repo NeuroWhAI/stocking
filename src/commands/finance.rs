@@ -103,9 +103,23 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[owners_only]
 #[aliases("stock")]
 async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let code = args.rest().trim();
+    let code = {
+        let code = args.rest().trim();
+        if code.parse::<usize>().is_err() {
+            let results = api::search(code).await?;
+            if results.len() >= 1 {
+                results[0].code.clone()
+            } else {
+                msg.reply(ctx, "해당 검색어로 종목을 찾을 수 없습니다.")
+                    .await?;
+                return Ok(());
+            }
+        } else {
+            code.to_owned()
+        }
+    };
 
-    match api::get_stock(code).await {
+    match api::get_stock(&code).await {
         Ok(stock) => {
             let response = msg.channel_id
                 .send_message(&ctx.http, |m| {
@@ -166,10 +180,10 @@ async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     let emoji = &answer.as_inner_ref().emoji;
                     if *emoji == emoji_add.emoji {
                         // 내 마켓에 종목 추가.
-                        market.add_or_update_stock(code, &stock);
+                        market.add_or_update_stock(&code, &stock);
                     } else if *emoji == emoji_del.emoji {
                         // 내 마켓에서 종목 삭제.
-                        market.remove_share(code);
+                        market.remove_share(&code);
                     }
                 }
             }
