@@ -212,6 +212,17 @@ pub struct StockQuotePage {
     pub is_last: bool,
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    /// 종목 코드.
+    #[serde(rename = "cd")]
+    pub code: String,
+
+    /// 종목 이름.
+    #[serde(rename = "nm")]
+    pub name: String,
+}
+
 mod detail {
     use std::str::FromStr;
 
@@ -423,6 +434,19 @@ mod tests {
                 time: "15:49".into(),
                 value: 63200.into(),
                 trading_volume: 31301923.into(),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_search_result_item() {
+        let data = r#" {"cd":"005930","nm":"삼성전자","nv":"63200","cv":"2200","cr":"3.61","rf":"2","mks":3772903,"aa":1949718,"nation":"KOR","etf":false} "#;
+        let item: SearchResult = serde_json::from_str(data).unwrap();
+        assert_eq!(
+            item,
+            SearchResult {
+                code: "005930".into(),
+                name: "삼성전자".into(),
             }
         );
     }
