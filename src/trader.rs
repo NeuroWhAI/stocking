@@ -4,20 +4,17 @@ use std::{
 };
 
 use chrono::{Datelike, Duration, FixedOffset, Timelike, Utc};
-use serenity::{http::Http, model::id::ChannelId, prelude::RwLock};
+use serenity::{http::Http, model::id::ChannelId, prelude::RwLock, utils::Colour};
 use tokio::time;
 use tracing::{debug, error, info};
 
-use crate::util::*;
 use crate::{
     market::{Market, ShareKind},
     naver::api,
 };
+use crate::{naver::model::MarketState, util::*};
 
-pub(crate) async fn update_market(
-    rx_quit: Receiver<()>,
-    market: Arc<RwLock<Market>>,
-) {
+pub(crate) async fn update_market(rx_quit: Receiver<()>, market: Arc<RwLock<Market>>) {
     info!("Start");
 
     let time_zone = FixedOffset::east(9 * 3600);
@@ -180,11 +177,25 @@ pub(crate) async fn notify_market_state(
             break;
         }
 
-        for &code in &["KOSPI", "KOSDAQ"] {
+        let mut alarms = Vec::new();
+        let mut rep_state = MarketState::Close;
+
+        let codes: Vec<_> = {
+            let market = market.read().await;
+            market
+                .share_codes()
+                .into_iter()
+                .map(|s| s.clone())
+                .collect()
+        };
+
+        for code in codes {
             let data: Option<_> = {
                 let market = market.read().await;
-                market.get_share(code).map(|share| {
+                market.get_share(&code).map(|share| {
                     (
+                        share.name.clone(),
+                        share.kind,
                         share.state,
                         share.value,
                         share.change_value,
@@ -193,35 +204,47 @@ pub(crate) async fn notify_market_state(
                 })
             };
 
-            if let Some((state, value, change_value, change_rate)) = data {
-                if let Some(prev_state) = prev_states.get(code) {
+            if let Some((name, kind, state, value, change_value, change_rate)) = data {
+                if let Some(prev_state) = prev_states.get(&code) {
                     if *prev_state != state {
-                        // 장 알림 전송.
-                        let msg_result = ChannelId(channel_id)
-                            .send_message(&discord, |m| {
-                                m.embed(|e| {
-                                    e.title(format!("{} {}", code, state));
-                                    e.description(format!(
-                                        "{}　{}{}　{:+.2}%",
-                                        format_value(value, 2),
-                                        get_change_value_char(change_value),
-                                        format_value(change_value, 2),
-                                        change_rate
-                                    ));
-                                    e.color(get_change_value_color(change_value));
-                                    e
-                                });
-                                m
-                            })
-                            .await;
-
-                        match msg_result {
-                            Err(err) => error!("{}", err),
-                            _ => {}
-                        }
+                        let radix = if kind == ShareKind::Index { 2 } else { 0 };
+                        let msg = format!(
+                            "{}　{}　{}{}　{:+.2}%",
+                            name,
+                            format_value(value, radix),
+                            get_change_value_char(change_value),
+                            format_value(change_value.abs(), radix),
+                            change_rate
+                        );
+                        alarms.push(msg);
+                        rep_state = state;
                     }
                 }
                 prev_states.insert(code, state);
+            }
+        }
+
+        // 장 알림 전송.
+        if !alarms.is_empty() {
+            let msg_result = ChannelId(channel_id)
+                .send_message(&discord, |m| {
+                    m.embed(|e| {
+                        e.title(rep_state);
+                        e.description(alarms.join("\n"));
+                        e.color(match rep_state {
+                            MarketState::PreOpen => Colour::from_rgb(25, 118, 210),
+                            MarketState::Close => Colour::from_rgb(97, 97, 97),
+                            MarketState::Open => Colour::from_rgb(67, 160, 71),
+                        });
+                        e
+                    });
+                    m
+                })
+                .await;
+
+            match msg_result {
+                Err(err) => error!("{}", err),
+                _ => {}
             }
         }
 
