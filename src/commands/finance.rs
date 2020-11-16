@@ -5,9 +5,10 @@ use serenity::prelude::*;
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
     futures::future::join_all,
+    utils::Colour,
 };
 
-use crate::util::*;
+use crate::{naver::model::MarketState, market::ShareKind, util::*};
 use crate::{client_data::MarketContainer, naver::api};
 
 #[command]
@@ -198,4 +199,58 @@ async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             Err(err.into())
         }
     }
+}
+
+#[command]
+#[owners_only]
+#[aliases("indices")]
+async fn show_my_indices(ctx: &Context, msg: &Message) -> CommandResult {
+    let mut contents = Vec::new();
+    let mut rep_state = MarketState::Close;
+
+    {
+        let data = ctx.data.read().await;
+        if let Some(market) = data.get::<MarketContainer>() {
+            let market = market.read().await;
+            
+            for (code, kind) in market.share_codes_with_kind() {
+                if kind != ShareKind::Index {
+                    continue;
+                }
+
+                if let Some(index) = market.get_share(code) {
+                    let info = format!(
+                        "{}　{}　{}{}　{:+.2}%",
+                        index.name,
+                        format_value(index.value, 2),
+                        get_change_value_char(index.change_value),
+                        format_value(index.change_value.abs(), 2),
+                        index.change_rate
+                    );
+                    contents.push(info);
+                    rep_state = index.state;
+                }
+            }
+        }
+    }
+
+    if !contents.is_empty() {
+        msg.channel_id
+            .send_message(ctx, |m| {
+                m.embed(|e| {
+                    e.title("관심 지수");
+                    e.description(contents.join("\n"));
+                    e.color(match rep_state {
+                        MarketState::PreOpen => Colour::from_rgb(25, 118, 210),
+                        MarketState::Close => Colour::from_rgb(97, 97, 97),
+                        MarketState::Open => Colour::from_rgb(67, 160, 71),
+                    });
+                    e
+                });
+                m
+            })
+            .await?;
+    }
+
+    Ok(())
 }
