@@ -80,7 +80,10 @@ pub(crate) async fn update_market(rx_quit: Receiver<()>, market: Arc<RwLock<Mark
                     match index {
                         Ok(index) => {
                             let mut market = market.write().await;
-                            market.add_or_update_index(&code, &index);
+                            // 다른 쪽에서 삭제되었을 수 있으니 lock 걸고 존재하는지 확인한 뒤 갱신.
+                            if market.contains(&code) {
+                                market.add_or_update_index(&code, &index);
+                            }
                         }
                         Err(err) => error!("{}", err),
                     }
@@ -90,7 +93,10 @@ pub(crate) async fn update_market(rx_quit: Receiver<()>, market: Arc<RwLock<Mark
                     match stock {
                         Ok(stock) => {
                             let mut market = market.write().await;
-                            market.add_or_update_stock(&code, &stock);
+                            // 다른 쪽에서 삭제되었을 수 있으니 lock 걸고 존재하는지 확인한 뒤 갱신.
+                            if market.contains(&code) {
+                                market.add_or_update_stock(&code, &stock);
+                            }
                         }
                         Err(err) => error!("{}", err),
                     }
