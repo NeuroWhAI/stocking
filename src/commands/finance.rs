@@ -8,8 +8,8 @@ use serenity::{
     utils::Colour,
 };
 
-use crate::{naver::model::MarketState, market::ShareKind, util::*};
 use crate::{client_data::MarketContainer, naver::api};
+use crate::{market::ShareKind, naver::model::MarketState, util::*};
 
 #[command]
 #[owners_only]
@@ -205,6 +205,23 @@ async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[owners_only]
 #[aliases("indices")]
 async fn show_my_indices(ctx: &Context, msg: &Message) -> CommandResult {
+    show_my_shares(ctx, msg, ShareKind::Index).await
+}
+
+#[command]
+#[owners_only]
+#[aliases("stocks")]
+async fn show_my_stocks(ctx: &Context, msg: &Message) -> CommandResult {
+    show_my_shares(ctx, msg, ShareKind::Stock).await
+}
+
+async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) -> CommandResult {
+    let radix = if target_kind == ShareKind::Index {
+        2
+    } else {
+        0
+    };
+
     let mut contents = Vec::new();
     let mut rep_state = MarketState::Close;
 
@@ -212,23 +229,23 @@ async fn show_my_indices(ctx: &Context, msg: &Message) -> CommandResult {
         let data = ctx.data.read().await;
         if let Some(market) = data.get::<MarketContainer>() {
             let market = market.read().await;
-            
+
             for (code, kind) in market.share_codes_with_kind() {
-                if kind != ShareKind::Index {
+                if kind != target_kind {
                     continue;
                 }
 
-                if let Some(index) = market.get_share(code) {
+                if let Some(share) = market.get_share(code) {
                     let info = format!(
                         "{}　{}　{}{}　{:+.2}%",
-                        index.name,
-                        format_value(index.value, 2),
-                        get_change_value_char(index.change_value),
-                        format_value(index.change_value.abs(), 2),
-                        index.change_rate
+                        share.name,
+                        format_value(share.value, radix),
+                        get_change_value_char(share.change_value),
+                        format_value(share.change_value.abs(), radix),
+                        share.change_rate
                     );
                     contents.push(info);
-                    rep_state = index.state;
+                    rep_state = share.state;
                 }
             }
         }
@@ -238,7 +255,10 @@ async fn show_my_indices(ctx: &Context, msg: &Message) -> CommandResult {
         msg.channel_id
             .send_message(ctx, |m| {
                 m.embed(|e| {
-                    e.title("관심 지수");
+                    e.title(match target_kind {
+                        ShareKind::Index => "관심 지수",
+                        ShareKind::Stock => "관심 종목",
+                    });
                     e.description(contents.join("\n"));
                     e.color(match rep_state {
                         MarketState::PreOpen => Colour::from_rgb(25, 118, 210),
