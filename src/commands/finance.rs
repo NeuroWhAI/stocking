@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use serenity::model::prelude::*;
 use serenity::prelude::*;
+use serenity::{builder::CreateEmbed, model::prelude::*};
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
     futures::future::join_all,
@@ -223,53 +223,112 @@ async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) ->
     };
 
     let mut contents = Vec::new();
-    let mut rep_state = MarketState::Close;
+    let mut result_msg: Option<Message> = None;
+    let mut emoji_stop: Option<Reaction> = None;
 
-    {
-        let data = ctx.data.read().await;
-        if let Some(market) = data.get::<MarketContainer>() {
-            let market = market.read().await;
+    let wait_timeout = Duration::from_secs(3);
+    let max_edit = 60 * 3 / wait_timeout.as_secs();
 
-            for (code, kind) in market.share_codes_with_kind() {
-                if kind != target_kind {
-                    continue;
+    for time in 1..=max_edit {
+        let mut rep_state = MarketState::Close;
+
+        {
+            let data = ctx.data.read().await;
+            if let Some(market) = data.get::<MarketContainer>() {
+                let market = market.read().await;
+
+                for (code, kind) in market.share_codes_with_kind() {
+                    if kind != target_kind {
+                        continue;
+                    }
+
+                    if let Some(share) = market.get_share(code) {
+                        let info = format!(
+                            "{}　{}　{}{}　{:+.2}%",
+                            share.name,
+                            format_value(share.value, radix),
+                            get_change_value_char(share.change_value),
+                            format_value(share.change_value.abs(), radix),
+                            share.change_rate
+                        );
+                        contents.push(info);
+                        rep_state = share.state;
+                    }
                 }
+            }
+        }
 
-                if let Some(share) = market.get_share(code) {
-                    let info = format!(
-                        "{}　{}　{}{}　{:+.2}%",
-                        share.name,
-                        format_value(share.value, radix),
-                        get_change_value_char(share.change_value),
-                        format_value(share.change_value.abs(), radix),
-                        share.change_rate
-                    );
-                    contents.push(info);
-                    rep_state = share.state;
+        if contents.is_empty() {
+            break;
+        } else {
+            fn embed_builder<'a>(
+                e: &'a mut CreateEmbed,
+                contents: &Vec<String>,
+                kind: ShareKind,
+                state: MarketState,
+            ) -> &'a mut CreateEmbed {
+                e.title(match kind {
+                    ShareKind::Index => "관심 지수",
+                    ShareKind::Stock => "관심 종목",
+                });
+                e.description(contents.join("\n"));
+                e.color(match state {
+                    MarketState::PreOpen => Colour::from_rgb(25, 118, 210),
+                    MarketState::Close => Colour::from_rgb(97, 97, 97),
+                    MarketState::Open => Colour::from_rgb(67, 160, 71),
+                });
+                e
+            }
+
+            match &mut result_msg {
+                Some(result_msg) => {
+                    // 메시지 수정.
+                    result_msg
+                        .edit(ctx, |m| {
+                            m.embed(|e| embed_builder(e, &contents, target_kind, rep_state))
+                        })
+                        .await?;
+                }
+                None => {
+                    // 수정할 새 메시지 생성.
+                    let response = msg
+                        .channel_id
+                        .send_message(ctx, |m| {
+                            m.embed(|e| embed_builder(e, &contents, target_kind, rep_state))
+                        })
+                        .await?;
+
+                    // 중지 버튼 생성.
+                    emoji_stop = response.react(&ctx, '🚫').await.ok();
+
+                    result_msg = Some(response);
+                }
+            }
+        }
+
+        if time < max_edit {
+            contents.clear();
+
+            // 다음 데이터가 준비될 때까지 중지 리액션 기다리기.
+            if let (Some(result_msg), Some(target_emoji)) = (&result_msg, &emoji_stop) {
+                let answer = result_msg
+                    .await_reaction(&ctx)
+                    .timeout(wait_timeout)
+                    .author_id(msg.author.id)
+                    .await;
+
+                if let Some(answer) = answer {
+                    let emoji = &answer.as_inner_ref().emoji;
+                    if *emoji == target_emoji.emoji {
+                        break;
+                    }
                 }
             }
         }
     }
 
-    if !contents.is_empty() {
-        msg.channel_id
-            .send_message(ctx, |m| {
-                m.embed(|e| {
-                    e.title(match target_kind {
-                        ShareKind::Index => "관심 지수",
-                        ShareKind::Stock => "관심 종목",
-                    });
-                    e.description(contents.join("\n"));
-                    e.color(match rep_state {
-                        MarketState::PreOpen => Colour::from_rgb(25, 118, 210),
-                        MarketState::Close => Colour::from_rgb(97, 97, 97),
-                        MarketState::Open => Colour::from_rgb(67, 160, 71),
-                    });
-                    e
-                });
-                m
-            })
-            .await?;
+    if let Some(emoji_stop) = emoji_stop {
+        emoji_stop.delete_all(ctx).await?;
     }
 
     Ok(())
