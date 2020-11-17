@@ -1,5 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use chrono::Utc;
 use serenity::prelude::*;
 use serenity::{builder::CreateEmbed, model::prelude::*};
 use serenity::{
@@ -277,6 +278,7 @@ async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) ->
                     MarketState::Close => Colour::from_rgb(97, 97, 97),
                     MarketState::Open => Colour::from_rgb(67, 160, 71),
                 });
+                e.timestamp(&Utc::now());
                 e
             }
 
