@@ -1,13 +1,14 @@
+mod alarm;
 mod client_data;
 mod commands;
 mod market;
 mod naver;
 mod trader;
-mod alarm;
 mod util;
 
-use std::{collections::HashSet, env, sync::mpsc, sync::Arc};
+use std::{collections::HashSet, env, path::PathBuf, sync::mpsc, sync::Arc};
 
+use anyhow::bail;
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
@@ -24,10 +25,11 @@ use serenity::{
     prelude::*,
 };
 use tokio::{
-    fs::OpenOptions,
+    fs::{self, OpenOptions},
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
 };
 
+use alarm::StockAlarm;
 use client_data::*;
 use commands::basic::*;
 use commands::finance::*;
@@ -128,13 +130,38 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    let stock_alarms = Arc::new(RwLock::new(StockAlarm::new()));
+
+    // Load my alarms.
+    let alarm_folder = "my_alarms";
+    if fs::metadata(&alarm_folder).await.is_ok() {
+        let mut files = fs::read_dir(&alarm_folder).await?;
+        while let Some(file) = files.next_entry().await? {
+            let path = file.path();
+            let code = path
+                .file_stem()
+                .and_then(|os_str| os_str.to_str())
+                .expect("file name without extension");
+
+            info!("Load alarms for {}", code);
+            let alarms = load_alarms(&path).await?;
+            info!("{} alarms loaded", alarms.len());
+            
+            let mut manager = stock_alarms.write().await;
+            for target_value in alarms {
+                manager.set_alarm(code, target_value)
+            }
+        }
+    } else {
+        // Create a folder for alarms if it doesn't exists.
+        fs::create_dir(&alarm_folder).await?;
+    }
+
     // Start traders.
     {
         let (tx_quit, rx_quit) = mpsc::channel();
         let market = Arc::clone(&market_one);
-        let handle = tokio::spawn(async move {
-            trader::update_market(rx_quit, market).await
-        });
+        let handle = tokio::spawn(async move { trader::update_market(rx_quit, market).await });
         quit_channels.push(tx_quit);
         traders.push(handle);
 
@@ -176,6 +203,7 @@ async fn main() -> anyhow::Result<()> {
         let mut data = client.data.write().await;
         data.insert::<ShardManagerContainer>(Arc::clone(&client.shard_manager));
         data.insert::<MarketContainer>(Arc::clone(&market_one));
+        data.insert::<AlarmContainer>(Arc::clone(&stock_alarms));
     }
 
     let shard_manager = client.shard_manager.clone();
@@ -210,6 +238,48 @@ async fn main() -> anyhow::Result<()> {
                     file.write_all(b"\n").await?;
                 }
             }
+        }
+    }
+
+    // Save my alarms.
+    let stock_alarms = stock_alarms.read().await;
+    for code in stock_alarms.codes() {
+        if let Some(alarms) = stock_alarms.get_alarms(code) {
+            let mut path = PathBuf::new();
+            path.push(alarm_folder);
+            path.push(code);
+            path.set_extension("txt");
+
+            save_alarms(&path, alarms).await?;
+        }
+    }
+    // TODO: 종목 코드 목록에 없는 파일은 삭제.
+
+    Ok(())
+}
+
+async fn load_alarms(path: &PathBuf) -> anyhow::Result<Vec<i64>> {
+    if let Ok(file) = OpenOptions::new().read(true).open(path).await {
+        let mut lines = BufReader::new(file).lines();
+        let mut alarms = Vec::new();
+
+        while let Ok(Some(target_value)) = lines.next_line().await {
+            if let Ok(target_value) = target_value.parse() {
+                alarms.push(target_value);
+            }
+        }
+
+        Ok(alarms)
+    } else {
+        bail!("Fail to load alarms");
+    }
+}
+
+async fn save_alarms(path: &PathBuf, alarms: &Vec<i64>) -> anyhow::Result<()> {
+    if let Ok(mut file) = OpenOptions::new().write(true).create(true).open(path).await {
+        for target_value in alarms {
+            file.write_all(target_value.to_string().as_bytes()).await?;
+            file.write_all(b"\n").await?;
         }
     }
 

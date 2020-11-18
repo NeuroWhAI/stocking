@@ -1,6 +1,7 @@
 /.env
 /my_index.txt
 /my_stock.txt
+/my_alarms/
 
 # Created by https://www.toptal.com/developers/gitignore/api/vscode,rust
 # Edit at https://www.toptal.com/developers/gitignore?templates=vscode,rust
