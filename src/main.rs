@@ -3,6 +3,7 @@ mod commands;
 mod market;
 mod naver;
 mod trader;
+mod alarm;
 mod util;
 
 use std::{collections::HashSet, env, sync::mpsc, sync::Arc};
