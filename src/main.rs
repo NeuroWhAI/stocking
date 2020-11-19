@@ -146,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
             info!("Load alarms for {}", code);
             let alarms = load_alarms(&path).await?;
             info!("{} alarms loaded", alarms.len());
-            
+
             let mut manager = stock_alarms.write().await;
             for target_value in alarms {
                 manager.set_alarm(code, target_value)
@@ -243,7 +243,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Save my alarms.
     let stock_alarms = stock_alarms.read().await;
-    for code in stock_alarms.codes() {
+    let alarm_codes = stock_alarms.codes();
+    for &code in &alarm_codes {
         if let Some(alarms) = stock_alarms.get_alarms(code) {
             let mut path = PathBuf::new();
             path.push(alarm_folder);
@@ -253,7 +254,22 @@ async fn main() -> anyhow::Result<()> {
             save_alarms(&path, alarms).await?;
         }
     }
-    // TODO: 종목 코드 목록에 없는 파일은 삭제.
+
+    // 목록에 없는 종목의 알람 파일은 삭제.
+    let mut alarm_files = fs::read_dir(&alarm_folder).await?;
+    while let Some(file) = alarm_files.next_entry().await? {
+        let path = file.path();
+        let code = path
+            .file_stem()
+            .and_then(|os_str| os_str.to_str())
+            .expect("file name without extension");
+
+        if alarm_codes.iter().find(|&&c| c == code).is_none() {
+            if let Err(why) = fs::remove_file(path).await {
+                error!("Fail to remove alarm file: {:?}", why);
+            }
+        }
+    }
 
     Ok(())
 }
