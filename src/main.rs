@@ -168,8 +168,12 @@ async fn main() -> anyhow::Result<()> {
     // Start traders.
     {
         let (tx_quit, rx_quit) = mpsc::channel();
+        let discord = Arc::clone(&http);
         let market = Arc::clone(&market_one);
-        let handle = tokio::spawn(async move { trader::update_market(rx_quit, market).await });
+        let stock_alarms = Arc::clone(&stock_alarms);
+        let handle = tokio::spawn(async move {
+            trader::update_market(discord, main_channel, rx_quit, market, stock_alarms).await
+        });
         quit_channels.push(tx_quit);
         traders.push(handle);
 
@@ -300,7 +304,7 @@ async fn load_alarms(path: &PathBuf) -> anyhow::Result<Vec<i64>> {
 }
 
 async fn save_alarms(path: &PathBuf, alarms: &Vec<i64>) -> anyhow::Result<()> {
-    if let Ok(mut file) = OpenOptions::new().write(true).create(true).open(path).await {
+    if let Ok(mut file) = OpenOptions::new().write(true).truncate(true).create(true).open(path).await {
         for target_value in alarms {
             file.write_all(target_value.to_string().as_bytes()).await?;
             file.write_all(b"\n").await?;

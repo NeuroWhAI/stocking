@@ -9,12 +9,21 @@ use tokio::time;
 use tracing::{debug, error, info};
 
 use crate::{
+    alarm::StockAlarm,
     market::{Market, ShareKind},
     naver::api,
+    naver::model::MarketState,
+    naver::model::Stock,
+    util::*,
 };
-use crate::{naver::model::MarketState, util::*};
 
-pub(crate) async fn update_market(rx_quit: Receiver<()>, market: Arc<RwLock<Market>>) {
+pub(crate) async fn update_market(
+    discord: Arc<Http>,
+    channel_id: u64,
+    rx_quit: Receiver<()>,
+    market: Arc<RwLock<Market>>,
+    stock_alarm: Arc<RwLock<StockAlarm>>,
+) {
     info!("Start");
 
     let time_zone = FixedOffset::east(9 * 3600);
@@ -92,6 +101,41 @@ pub(crate) async fn update_market(rx_quit: Receiver<()>, market: Arc<RwLock<Mark
                     let stock = api::get_stock(&code).await;
                     match stock {
                         Ok(stock) => {
+                            let prev_value = {
+                                let market = market.read().await;
+                                market.get_share(&code).map(|share| share.value)
+                            };
+
+                            // 알람 확인.
+                            let mut executed_alarms = Vec::new();
+                            if let Some(prev_value) = prev_value {
+                                let stock_alarm = stock_alarm.read().await;
+                                if let Some(alarms) = stock_alarm.get_alarms(&code) {
+                                    for &target_value in alarms {
+                                        // 상승, 하락 돌파 조건.
+                                        if (prev_value <= target_value
+                                            && target_value <= stock.now_value)
+                                            || (prev_value >= target_value
+                                                && target_value >= stock.now_value)
+                                        {
+                                            executed_alarms.push(target_value);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 알람 전송.
+                            if !executed_alarms.is_empty() {
+                                // 알람은 일회성이라 삭제하고 보냄.
+                                {
+                                    let mut stock_alarm = stock_alarm.write().await;
+                                    for &target_value in &executed_alarms {
+                                        stock_alarm.remove_alarm(&code, target_value);
+                                    }
+                                }
+                                send_alarm(&discord, channel_id, &stock, &executed_alarms).await;
+                            }
+
                             let mut market = market.write().await;
                             // 다른 쪽에서 삭제되었을 수 있으니 lock 걸고 존재하는지 확인한 뒤 갱신.
                             if market.contains(&code) {
@@ -258,4 +302,35 @@ pub(crate) async fn notify_market_state(
     }
 
     info!("Exit");
+}
+
+async fn send_alarm(discord: &Arc<Http>, channel_id: u64, stock: &Stock, target_values: &Vec<i64>) {
+    let msg_result = ChannelId(channel_id)
+        .send_message(discord, |m| {
+            m.embed(|e| {
+                e.title(format!("알람 - {}", stock.name));
+                let alarm_desc = target_values
+                    .into_iter()
+                    .map(|&val| format_value(val, 0) + "원")
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                e.description(format!(
+                    "{}　{}{}　{:.2}%\n돌파: {}",
+                    format_value(stock.now_value, 0),
+                    get_change_value_char(stock.change_value()),
+                    format_value(stock.change_value().abs(), 0),
+                    stock.change_rate(),
+                    alarm_desc,
+                ));
+                e.color(get_change_value_color(stock.change_value()));
+                e
+            });
+            m
+        })
+        .await;
+
+    match msg_result {
+        Err(err) => error!("{}", err),
+        _ => {}
+    }
 }
