@@ -241,7 +241,13 @@ async fn main() -> anyhow::Result<()> {
         (index_path, ShareKind::Index),
         (stock_path, ShareKind::Stock),
     ] {
-        if let Ok(mut file) = OpenOptions::new().write(true).create(true).open(path).await {
+        if let Ok(mut file) = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(path)
+            .await
+        {
             let market = market_one.read().await;
 
             for (code, kind) in market.share_codes_with_kind() {
@@ -304,7 +310,13 @@ async fn load_alarms(path: &PathBuf) -> anyhow::Result<Vec<i64>> {
 }
 
 async fn save_alarms(path: &PathBuf, alarms: &Vec<i64>) -> anyhow::Result<()> {
-    if let Ok(mut file) = OpenOptions::new().write(true).truncate(true).create(true).open(path).await {
+    if let Ok(mut file) = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .open(path)
+        .await
+    {
         for target_value in alarms {
             file.write_all(target_value.to_string().as_bytes()).await?;
             file.write_all(b"\n").await?;
