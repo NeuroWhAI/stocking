@@ -54,7 +54,15 @@ impl EventHandler for Handler {
 struct General;
 
 #[group]
-#[commands(show_index, show_stock, show_my_indices, show_my_stocks)]
+#[commands(
+    show_index,
+    show_stock,
+    show_my_indices,
+    show_my_stocks,
+    set_alarm,
+    off_alarm,
+    show_alarms
+)]
 struct Finance;
 
 #[help]

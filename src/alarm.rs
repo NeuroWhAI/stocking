@@ -23,15 +23,19 @@ impl StockAlarm {
             .or_insert([target_value].to_vec());
     }
 
-    pub fn remove_alarm(&mut self, code: &str, target_value: i64) {
+    pub fn remove_alarm(&mut self, code: &str, target_value: i64) -> bool {
         if let Some(v) = self.alarms.get_mut(code) {
             if let Ok(i) = v.binary_search(&target_value) {
                 v.remove(i);
                 if v.is_empty() {
                     self.alarms.remove(code);
                 }
+                
+                return true
             }
         }
+
+        false
     }
 
     pub fn codes(&self) -> Vec<&String> {

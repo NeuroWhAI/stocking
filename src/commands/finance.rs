@@ -1,5 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use anyhow::bail;
 use chrono::Utc;
 use serenity::prelude::*;
 use serenity::{builder::CreateEmbed, model::prelude::*};
@@ -9,7 +10,10 @@ use serenity::{
     utils::Colour,
 };
 
-use crate::{client_data::MarketContainer, naver::api};
+use crate::{
+    client_data::{AlarmContainer, MarketContainer},
+    naver::api,
+};
 use crate::{market::ShareKind, naver::model::MarketState, util::*};
 
 #[command]
@@ -107,17 +111,9 @@ async fn show_index(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let code = {
         let code = args.rest().trim();
-        if code.parse::<usize>().is_err() {
-            let results = api::search(code).await?;
-            if results.len() >= 1 {
-                results[0].code.clone()
-            } else {
-                msg.reply(ctx, "해당 검색어로 종목을 찾을 수 없습니다.")
-                    .await?;
-                return Ok(());
-            }
-        } else {
-            code.to_owned()
+        match get_code(code).await {
+            Ok(code) => code,
+            Err(_) => code.to_owned(),
         }
     };
 
@@ -214,6 +210,148 @@ async fn show_my_indices(ctx: &Context, msg: &Message) -> CommandResult {
 #[aliases("stocks")]
 async fn show_my_stocks(ctx: &Context, msg: &Message) -> CommandResult {
     show_my_shares(ctx, msg, ShareKind::Stock).await
+}
+
+#[command]
+#[owners_only]
+#[aliases("alarm")]
+async fn set_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let code_or_name = args.single::<String>()?;
+    let code = {
+        match get_code(&code_or_name).await {
+            Ok(code) => code,
+            Err(_) => code_or_name.to_owned(),
+        }
+    };
+
+    let target_value = args.single::<i64>()?;
+
+    let data = ctx.data.read().await;
+    if let Some(alarm_manager) = data.get::<AlarmContainer>() {
+        let mut alarm_manager = alarm_manager.write().await;
+        alarm_manager.set_alarm(&code, target_value);
+
+        msg.reply(
+            ctx,
+            format!(
+                "{} 종목에 {}원 알람이 설정되었습니다.",
+                code_or_name, target_value
+            ),
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+#[command]
+#[owners_only]
+#[aliases("off")]
+async fn off_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let code_or_name = args.single::<String>()?;
+    let code = {
+        match get_code(&code_or_name).await {
+            Ok(code) => code,
+            Err(_) => code_or_name.to_owned(),
+        }
+    };
+
+    let target_value = args.single::<i64>()?;
+
+    let data = ctx.data.read().await;
+    if let Some(alarm_manager) = data.get::<AlarmContainer>() {
+        let mut alarm_manager = alarm_manager.write().await;
+        let removed = alarm_manager.remove_alarm(&code, target_value);
+
+        if removed {
+            msg.reply(
+                ctx,
+                format!(
+                    "{} 종목의 {}원 알람이 제거되었습니다.",
+                    code_or_name, target_value
+                ),
+            )
+            .await?;
+        } else {
+            msg.reply(
+                ctx,
+                format!(
+                    "{} 종목에 {}원 알람이 없습니다.",
+                    code_or_name, target_value
+                ),
+            )
+            .await?;
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+#[owners_only]
+#[aliases("alarms")]
+async fn show_alarms(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let code_or_name = args.rest().trim();
+    if code_or_name.is_empty() {
+        msg.reply(ctx, format!("종목 코드나 이름을 인수로 넘기세요."))
+            .await?;
+        return Err("Empty argument".into());
+    }
+
+    let code = {
+        match get_code(&code_or_name).await {
+            Ok(code) => code,
+            Err(_) => code_or_name.to_owned(),
+        }
+    };
+
+    let alarms: Option<Vec<_>> = {
+        let data = ctx.data.read().await;
+        if let Some(alarm_manager) = data.get::<AlarmContainer>() {
+            let alarm_manager = alarm_manager.read().await;
+            alarm_manager.get_alarms(&code).map(|v| {
+                v.into_iter()
+                    .map(|&target_value| format_value(target_value, 0) + "원")
+                    .collect()
+            })
+        } else {
+            None
+        }
+    };
+
+    match alarms {
+        Some(alarms) => {
+            msg.channel_id
+                .send_message(ctx, |m| {
+                    m.embed(|e| {
+                        e.title(format!("알람 - {}", code_or_name));
+                        e.description(alarms.join("\n"));
+                        e.color(Colour::from_rgb(245, 127, 23));
+                        e
+                    })
+                })
+                .await?;
+        }
+        None => {
+            msg.reply(ctx, format!("{} 종목에 설정된 알람이 없습니다.", code))
+                .await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn get_code(code_or_name: &str) -> anyhow::Result<String> {
+    if code_or_name.parse::<usize>().is_err() {
+        let results = api::search(code_or_name).await?;
+        if results.len() >= 1 {
+            Ok(results[0].code.clone())
+        } else {
+            bail!("No result");
+        }
+    } else {
+        Ok(code_or_name.to_owned())
+    }
 }
 
 async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) -> CommandResult {
