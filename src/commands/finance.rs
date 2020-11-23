@@ -243,7 +243,11 @@ async fn set_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 
         msg.reply(
             ctx,
-            format!("{} 종목에 {}원 알람이 설정되었습니다.", name, target_value),
+            format!(
+                "{} 종목에 {}원 알람이 설정되었습니다.",
+                name,
+                format_value(target_value, 0)
+            ),
         )
         .await?;
     } else {
@@ -289,7 +293,7 @@ async fn off_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                 format!(
                     "{} 종목의 {}원 알람이 제거되었습니다.",
                     name.unwrap_or(code),
-                    target_value
+                    format_value(target_value, 0),
                 ),
             )
             .await?;
@@ -299,7 +303,7 @@ async fn off_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                 format!(
                     "{} 종목에 {}원 알람이 없습니다.",
                     name.unwrap_or(code),
-                    target_value
+                    format_value(target_value, 0),
                 ),
             )
             .await?;
