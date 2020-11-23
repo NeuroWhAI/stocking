@@ -216,8 +216,8 @@ async fn show_my_stocks(ctx: &Context, msg: &Message) -> CommandResult {
 #[owners_only]
 #[aliases("alarm")]
 async fn set_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let code_or_name = args.single::<String>()?;
     let code = {
+        let code_or_name = args.single::<String>()?;
         match get_code(&code_or_name).await {
             Ok(code) => code,
             Err(_) => code_or_name.to_owned(),
@@ -226,19 +226,29 @@ async fn set_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 
     let target_value = args.single::<i64>()?;
 
+    let name = {
+        let data = ctx.data.read().await;
+        if let Some(market) = data.get::<MarketContainer>() {
+            let market = market.read().await;
+            market.get_share(&code).map(|share| share.name.clone())
+        } else {
+            None
+        }
+    };
+
     let data = ctx.data.read().await;
-    if let Some(alarm_manager) = data.get::<AlarmContainer>() {
+    if let (Some(alarm_manager), Some(name)) = (data.get::<AlarmContainer>(), name) {
         let mut alarm_manager = alarm_manager.write().await;
         alarm_manager.set_alarm(&code, target_value);
 
         msg.reply(
             ctx,
-            format!(
-                "{} 종목에 {}원 알람이 설정되었습니다.",
-                code_or_name, target_value
-            ),
+            format!("{} 종목에 {}원 알람이 설정되었습니다.", name, target_value),
         )
         .await?;
+    } else {
+        msg.reply(ctx, format!("관심 종목만 알람을 설정할 수 있습니다."))
+            .await?;
     }
 
     Ok(())
@@ -248,11 +258,21 @@ async fn set_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 #[owners_only]
 #[aliases("off")]
 async fn off_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let code_or_name = args.single::<String>()?;
     let code = {
+        let code_or_name = args.single::<String>()?;
         match get_code(&code_or_name).await {
             Ok(code) => code,
             Err(_) => code_or_name.to_owned(),
+        }
+    };
+
+    let name = {
+        let data = ctx.data.read().await;
+        if let Some(market) = data.get::<MarketContainer>() {
+            let market = market.read().await;
+            market.get_share(&code).map(|share| share.name.clone())
+        } else {
+            None
         }
     };
 
@@ -268,7 +288,8 @@ async fn off_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                 ctx,
                 format!(
                     "{} 종목의 {}원 알람이 제거되었습니다.",
-                    code_or_name, target_value
+                    name.unwrap_or(code),
+                    target_value
                 ),
             )
             .await?;
@@ -277,7 +298,8 @@ async fn off_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
                 ctx,
                 format!(
                     "{} 종목에 {}원 알람이 없습니다.",
-                    code_or_name, target_value
+                    name.unwrap_or(code),
+                    target_value
                 ),
             )
             .await?;
@@ -292,16 +314,29 @@ async fn off_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 #[aliases("alarms")]
 async fn show_alarms(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let code_or_name = args.rest().trim();
-    if code_or_name.is_empty() {
-        msg.reply(ctx, format!("종목 코드나 이름을 인수로 넘기세요."))
-            .await?;
-        return Err("Empty argument".into());
-    }
-
+    let list_all = code_or_name.is_empty();
     let code = {
-        match get_code(&code_or_name).await {
-            Ok(code) => code,
-            Err(_) => code_or_name.to_owned(),
+        if list_all {
+            "ALL".into()
+        } else {
+            match get_code(&code_or_name).await {
+                Ok(code) => code,
+                Err(_) => code_or_name.to_owned(),
+            }
+        }
+    };
+
+    let name = {
+        if list_all {
+            Some("모두".into())
+        } else {
+            let data = ctx.data.read().await;
+            if let Some(market) = data.get::<MarketContainer>() {
+                let market = market.read().await;
+                market.get_share(&code).map(|share| share.name.clone())
+            } else {
+                None
+            }
         }
     };
 
@@ -309,11 +344,42 @@ async fn show_alarms(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
         let data = ctx.data.read().await;
         if let Some(alarm_manager) = data.get::<AlarmContainer>() {
             let alarm_manager = alarm_manager.read().await;
-            alarm_manager.get_alarms(&code).map(|v| {
-                v.into_iter()
-                    .map(|&target_value| format_value(target_value, 0) + "원")
-                    .collect()
-            })
+            if list_all {
+                // 모든 알람 조회.
+                if let Some(market) = data.get::<MarketContainer>() {
+                    let market = market.read().await;
+                    alarm_manager
+                        .codes()
+                        .into_iter()
+                        .map(|code| {
+                            alarm_manager.get_alarms(code).map(|v| {
+                                format!(
+                                    "{} : {}원",
+                                    // 종목 이름 얻기.
+                                    market
+                                        .get_share(code)
+                                        .map(|share| &share.name)
+                                        .unwrap_or(code),
+                                    // 알람 목록 텍스트 생성.
+                                    v.into_iter()
+                                        .map(|&val| format_value(val, 0))
+                                        .collect::<Vec<_>>()
+                                        .join(" | ")
+                                )
+                            })
+                        })
+                        .collect()
+                } else {
+                    None
+                }
+            } else {
+                // 특정 종목의 알람 조회.
+                alarm_manager.get_alarms(&code).map(|v| {
+                    v.into_iter()
+                        .map(|&target_value| format_value(target_value, 0) + "원")
+                        .collect()
+                })
+            }
         } else {
             None
         }
@@ -324,7 +390,7 @@ async fn show_alarms(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
             msg.channel_id
                 .send_message(ctx, |m| {
                     m.embed(|e| {
-                        e.title(format!("알람 - {}", code_or_name));
+                        e.title(format!("알람 - {}", name.unwrap_or(code)));
                         e.description(alarms.join("\n"));
                         e.color(Colour::from_rgb(245, 127, 23));
                         e
@@ -333,8 +399,11 @@ async fn show_alarms(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
                 .await?;
         }
         None => {
-            msg.reply(ctx, format!("{} 종목에 설정된 알람이 없습니다.", code))
-                .await?;
+            msg.reply(
+                ctx,
+                format!("{} 종목에 설정된 알람이 없습니다.", name.unwrap_or(code)),
+            )
+            .await?;
         }
     }
 
