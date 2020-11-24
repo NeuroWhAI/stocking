@@ -441,7 +441,7 @@ async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) ->
     let mut result_msg: Option<Message> = None;
     let mut emoji_stop: Option<Reaction> = None;
 
-    let wait_timeout = Duration::from_secs(3);
+    let wait_timeout = crate::trader::UPDATE_TERM;
     let max_edit = 60 * 3 / wait_timeout.as_secs();
 
     for time in 1..=max_edit {

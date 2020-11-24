@@ -17,6 +17,8 @@ use crate::{
     util::*,
 };
 
+pub(crate) const UPDATE_TERM: std::time::Duration = std::time::Duration::from_millis(3000);
+
 pub(crate) async fn update_market(
     discord: Arc<Http>,
     channel_id: u64,
@@ -67,7 +69,7 @@ pub(crate) async fn update_market(
         }
 
         if !on_work {
-            time::delay_for(std::time::Duration::from_millis(3000)).await;
+            time::delay_for(UPDATE_TERM).await;
             continue;
         }
 
@@ -215,7 +217,7 @@ pub(crate) async fn update_market(
             }
         }
 
-        time::delay_for(std::time::Duration::from_millis(3000)).await;
+        time::delay_for(UPDATE_TERM).await;
     }
 
     info!("Exit");
@@ -307,7 +309,7 @@ pub(crate) async fn notify_market_state(
             }
         }
 
-        time::delay_for(std::time::Duration::from_millis(3000)).await;
+        time::delay_for(UPDATE_TERM).await;
     }
 
     info!("Exit");
