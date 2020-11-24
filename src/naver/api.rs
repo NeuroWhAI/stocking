@@ -12,7 +12,7 @@ const HOST_M_STOCK: &str = "https://m.stock.naver.com/";
 
 pub async fn get_index(name: &str) -> Result<Index> {
     let json: Value = reqwest::get(&format!(
-        "{}api/realtime.nhn?query=SERVICE_INDEX:{}",
+        "{}api/realtime?query=SERVICE_INDEX:{}",
         HOST_POLL, name
     ))
     .await?
@@ -24,7 +24,7 @@ pub async fn get_index(name: &str) -> Result<Index> {
 
 pub async fn get_stock(code: &str) -> Result<Stock> {
     let text = reqwest::get(&format!(
-        "{}api/realtime.nhn?query=SERVICE_ITEM:{}",
+        "{}api/realtime?query=SERVICE_ITEM:{}",
         HOST_POLL, code
     ))
     .await?
