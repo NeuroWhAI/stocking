@@ -315,6 +315,123 @@ pub(crate) async fn notify_market_state(
     info!("Exit");
 }
 
+pub(crate) async fn notify_change_rate(
+    discord: Arc<Http>,
+    channel_id: u64,
+    rx_quit: Receiver<()>,
+    market: Arc<RwLock<Market>>,
+) {
+    info!("Start");
+
+    // 상한 범위.
+    let limit_range = 1.0;
+
+    let mut prev_states = HashMap::new();
+    let mut rate_limits = HashMap::new();
+
+    loop {
+        if let Ok(_) = rx_quit.try_recv() {
+            break;
+        }
+
+        let codes: Vec<_> = {
+            let market = market.read().await;
+            market
+                .share_codes()
+                .into_iter()
+                .map(|s| s.clone())
+                .collect()
+        };
+
+        for code in codes {
+            let data: Option<_> = {
+                let market = market.read().await;
+                market
+                    .get_share(&code)
+                    .and_then(|share| {
+                        // 지수는 알리지 않음.
+                        if share.kind != ShareKind::Stock {
+                            None
+                        } else {
+                            Some(share)
+                        }
+                    })
+                    .map(|share| {
+                        (
+                            share.name.clone(),
+                            share.state,
+                            share.value,
+                            share.change_value,
+                            share.change_rate,
+                        )
+                    })
+            };
+
+            if let Some((name, state, value, change_value, change_rate)) = data {
+                // 장 상태가 장중으로 바뀌는 시점에 상한 초기화.
+                let prev_state = *prev_states.entry(code.clone()).or_insert(state);
+                if prev_state != state {
+                    prev_states.insert(code.clone(), state);
+
+                    if state == MarketState::Open {
+                        rate_limits.insert(code.clone(), limit_range);
+                    }
+                }
+
+                // 장중 상태에서만 알림.
+                if state != MarketState::Open {
+                    continue;
+                }
+
+                // 현재 등락률이 설정된 범위를 벗어났는지 확인.
+                if let Some(&upper) = rate_limits.get(&code) {
+                    let lower = upper - limit_range * 2.0;
+                    if change_rate > upper - f64::EPSILON || change_rate < lower + f64::EPSILON {
+                        // 현재 등락률 기준으로 상한 다시 계산.
+                        let new_upper =
+                            (change_rate / limit_range).round() * limit_range + limit_range;
+                        rate_limits.insert(code, new_upper);
+
+                        // 범위 중간에서 얼마나 움직였나 계산.
+                        let move_val = change_rate - (upper - limit_range);
+
+                        // 등락 알림 전송.
+                        let msg_result = ChannelId(channel_id)
+                            .send_message(&discord, |m| {
+                                m.embed(|e| {
+                                    let move_desc =
+                                        if move_val > 0.0 { "상승" } else { "하락" };
+                                    e.title(format!("{} - {}", move_desc, name));
+                                    e.description(format!(
+                                        "{}　{}　{}{}　{:+.2}%",
+                                        name,
+                                        format_value(value, 0),
+                                        get_change_value_char(change_value),
+                                        format_value(change_value.abs(), 0),
+                                        change_rate
+                                    ));
+                                    e.color(get_light_change_color(move_val));
+                                    e
+                                });
+                                m
+                            })
+                            .await;
+
+                        match msg_result {
+                            Err(err) => error!("{}", err),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
+        time::delay_for(UPDATE_TERM).await;
+    }
+
+    info!("Exit");
+}
+
 async fn send_alarm(
     discord: &Arc<Http>,
     channel_id: u64,

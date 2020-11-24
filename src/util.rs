@@ -56,20 +56,26 @@ pub(crate) fn get_change_value_char(val: i64) -> char {
     }
 }
 
-pub(crate) fn get_change_value_color(val: i64) -> Colour {
-    if val > 0 {
+pub(crate) fn get_change_value_color<T>(val: T) -> Colour
+where
+    T: PartialOrd + From<i32>,
+{
+    if val > From::from(0) {
         Colour::from_rgb(217, 4, 0)
-    } else if val < 0 {
+    } else if val < From::from(0) {
         Colour::from_rgb(0, 93, 222)
     } else {
         Colour::from_rgb(51, 51, 51)
     }
 }
 
-pub(crate) fn get_light_change_color(val: i64) -> Colour {
-    if val > 0 {
+pub(crate) fn get_light_change_color<T>(val: T) -> Colour
+where
+    T: PartialOrd + From<i32>,
+{
+    if val > From::from(0) {
         Colour::from_rgb(239, 83, 80)
-    } else if val < 0 {
+    } else if val < From::from(0) {
         Colour::from_rgb(92, 107, 192)
     } else {
         Colour::from_rgb(117, 117, 117)
