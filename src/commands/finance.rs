@@ -224,8 +224,6 @@ async fn set_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
         }
     };
 
-    let target_value = args.single::<i64>()?;
-
     let name = {
         let data = ctx.data.read().await;
         if let Some(market) = data.get::<MarketContainer>() {
@@ -236,23 +234,28 @@ async fn set_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
         }
     };
 
-    let data = ctx.data.read().await;
-    if let (Some(alarm_manager), Some(name)) = (data.get::<AlarmContainer>(), name) {
-        let mut alarm_manager = alarm_manager.write().await;
-        alarm_manager.set_alarm(&code, target_value);
+    let mut response = Vec::new();
 
-        msg.reply(
-            ctx,
-            format!(
+    while let Ok(target_value) = args.single::<i64>() {
+        let data = ctx.data.read().await;
+        if let (Some(alarm_manager), Some(name)) = (data.get::<AlarmContainer>(), &name) {
+            let mut alarm_manager = alarm_manager.write().await;
+            alarm_manager.set_alarm(&code, target_value);
+
+            response.push(format!(
                 "{} 종목에 {}원 알람이 설정되었습니다.",
                 name,
                 format_value(target_value, 0)
-            ),
-        )
-        .await?;
+            ));
+        } else {
+            response.push(format!("{} 종목은 관심 목록에 없습니다.", code,));
+        }
+    }
+
+    if response.is_empty() {
+        msg.reply(ctx, "추가할 알람을 입력하세요.").await?;
     } else {
-        msg.reply(ctx, format!("관심 종목만 알람을 설정할 수 있습니다."))
-            .await?;
+        msg.reply(ctx, response.join("\n")).await?;
     }
 
     Ok(())
@@ -280,34 +283,34 @@ async fn off_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
         }
     };
 
-    let target_value = args.single::<i64>()?;
+    let mut response = Vec::new();
 
-    let data = ctx.data.read().await;
-    if let Some(alarm_manager) = data.get::<AlarmContainer>() {
-        let mut alarm_manager = alarm_manager.write().await;
-        let removed = alarm_manager.remove_alarm(&code, target_value);
+    while let Ok(target_value) = args.single::<i64>() {
+        let data = ctx.data.read().await;
+        if let Some(alarm_manager) = data.get::<AlarmContainer>() {
+            let mut alarm_manager = alarm_manager.write().await;
+            let removed = alarm_manager.remove_alarm(&code, target_value);
 
-        if removed {
-            msg.reply(
-                ctx,
-                format!(
+            if removed {
+                response.push(format!(
                     "{} 종목의 {}원 알람이 제거되었습니다.",
-                    name.unwrap_or(code),
+                    name.as_ref().unwrap_or(&code),
                     format_value(target_value, 0),
-                ),
-            )
-            .await?;
-        } else {
-            msg.reply(
-                ctx,
-                format!(
+                ));
+            } else {
+                response.push(format!(
                     "{} 종목에 {}원 알람이 없습니다.",
-                    name.unwrap_or(code),
+                    name.as_ref().unwrap_or(&code),
                     format_value(target_value, 0),
-                ),
-            )
-            .await?;
+                ));
+            }
         }
+    }
+
+    if response.is_empty() {
+        msg.reply(ctx, "제거할 알람을 지정하세요.").await?;
+    } else {
+        msg.reply(ctx, response.join("\n")).await?;
     }
 
     Ok(())
