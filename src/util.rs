@@ -66,6 +66,16 @@ pub(crate) fn get_change_value_color(val: i64) -> Colour {
     }
 }
 
+pub(crate) fn get_light_change_color(val: i64) -> Colour {
+    if val > 0 {
+        Colour::from_rgb(239, 83, 80)
+    } else if val < 0 {
+        Colour::from_rgb(92, 107, 192)
+    } else {
+        Colour::from_rgb(117, 117, 117)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -133,7 +133,16 @@ pub(crate) async fn update_market(
                                         stock_alarm.remove_alarm(&code, target_value);
                                     }
                                 }
-                                send_alarm(&discord, channel_id, &stock, &executed_alarms).await;
+                                let move_val =
+                                    prev_value.map(|prev| stock.now_value - prev).unwrap_or(0);
+                                send_alarm(
+                                    &discord,
+                                    channel_id,
+                                    &stock,
+                                    &executed_alarms,
+                                    move_val,
+                                )
+                                .await;
                             }
 
                             let mut market = market.write().await;
@@ -304,7 +313,13 @@ pub(crate) async fn notify_market_state(
     info!("Exit");
 }
 
-async fn send_alarm(discord: &Arc<Http>, channel_id: u64, stock: &Stock, target_values: &Vec<i64>) {
+async fn send_alarm(
+    discord: &Arc<Http>,
+    channel_id: u64,
+    stock: &Stock,
+    target_values: &Vec<i64>,
+    move_val: i64,
+) {
     let msg_result = ChannelId(channel_id)
         .send_message(discord, |m| {
             m.embed(|e| {
@@ -322,7 +337,7 @@ async fn send_alarm(discord: &Arc<Http>, channel_id: u64, stock: &Stock, target_
                     stock.change_rate(),
                     alarm_desc,
                 ));
-                e.color(get_change_value_color(stock.change_value()));
+                e.color(get_light_change_color(move_val));
                 e
             });
             m
