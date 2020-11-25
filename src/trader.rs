@@ -250,6 +250,9 @@ pub(crate) async fn notify_market_state(
                 .collect()
         };
 
+        // 관심 종목이 아닌 것의 상태 기억은 제거.
+        prev_states.retain(|k, _| codes.contains(k));
+
         for code in codes {
             let data: Option<_> = {
                 let market = market.read().await;
@@ -342,6 +345,10 @@ pub(crate) async fn notify_change_rate(
                 .map(|s| s.clone())
                 .collect()
         };
+
+        // 관심 종목이 아닌 것의 정보는 제거.
+        prev_states.retain(|k, _| codes.contains(k));
+        rate_limits.retain(|k, _| codes.contains(k));
 
         for code in codes {
             let data: Option<_> = {
