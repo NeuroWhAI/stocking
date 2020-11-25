@@ -383,14 +383,14 @@ pub(crate) async fn notify_change_rate(
                     continue;
                 }
 
+                let mut update_limit = false;
+
                 // 현재 등락률이 설정된 범위를 벗어났는지 확인.
                 if let Some(&upper) = rate_limits.get(&code) {
                     let lower = upper - limit_range * 2.0;
                     if change_rate > upper - f64::EPSILON || change_rate < lower + f64::EPSILON {
                         // 현재 등락률 기준으로 상한 다시 계산.
-                        let new_upper =
-                            (change_rate / limit_range).round() * limit_range + limit_range;
-                        rate_limits.insert(code, new_upper);
+                        update_limit = true;
 
                         // 범위 중간에서 얼마나 움직였나 계산.
                         let move_val = change_rate - (upper - limit_range);
@@ -422,6 +422,16 @@ pub(crate) async fn notify_change_rate(
                             _ => {}
                         }
                     }
+                } else {
+                    // 장중에 추가된 종목이면 여기 올 수 있음.
+                    // 상한을 현재 등락률로 계산해서 초기화하도록 함.
+                    update_limit = true;
+                }
+
+                if update_limit {
+                    // 현재 등락률 기준으로 상한 계산.
+                    let new_upper = (change_rate / limit_range).round() * limit_range + limit_range;
+                    rate_limits.insert(code, new_upper);
                 }
             }
         }
