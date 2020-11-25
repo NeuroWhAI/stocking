@@ -266,22 +266,22 @@ pub(crate) async fn notify_market_state(
             };
 
             if let Some((name, kind, state, value, change_value, change_rate)) = data {
-                if let Some(prev_state) = prev_states.get(&code) {
-                    if *prev_state != state {
-                        let radix = if kind == ShareKind::Index { 2 } else { 0 };
-                        let msg = format!(
-                            "{}　{}　{}{}　{:+.2}%",
-                            name,
-                            format_value(value, radix),
-                            get_change_value_char(change_value),
-                            format_value(change_value.abs(), radix),
-                            change_rate
-                        );
-                        alarms.push(msg);
-                        rep_state = state;
-                    }
+                let prev_state = prev_states.entry(code.clone()).or_insert(state);
+                if prev_state != &state {
+                    *prev_state = state;
+
+                    let radix = if kind == ShareKind::Index { 2 } else { 0 };
+                    let msg = format!(
+                        "{}　{}　{}{}　{:+.2}%",
+                        name,
+                        format_value(value, radix),
+                        get_change_value_char(change_value),
+                        format_value(change_value.abs(), radix),
+                        change_rate
+                    );
+                    alarms.push(msg);
+                    rep_state = state;
                 }
-                prev_states.insert(code, state);
             }
         }
 
@@ -369,9 +369,9 @@ pub(crate) async fn notify_change_rate(
 
             if let Some((name, state, value, change_value, change_rate)) = data {
                 // 장 상태가 장중으로 바뀌는 시점에 상한 초기화.
-                let prev_state = *prev_states.entry(code.clone()).or_insert(state);
-                if prev_state != state {
-                    prev_states.insert(code.clone(), state);
+                let prev_state = prev_states.entry(code.clone()).or_insert(state);
+                if prev_state != &state {
+                    *prev_state = state;
 
                     if state == MarketState::Open {
                         rate_limits.insert(code.clone(), limit_range);
