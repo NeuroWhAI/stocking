@@ -446,6 +446,8 @@ async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) ->
 
     for time in 1..=max_edit {
         let mut rep_state = MarketState::Close;
+        let mut total_change_val = 0;
+        let mut total_change_rate = 0.0;
 
         {
             let data = ctx.data.read().await;
@@ -467,7 +469,10 @@ async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) ->
                             share.change_rate
                         );
                         contents.push(info);
+
                         rep_state = share.state;
+                        total_change_val += share.change_value;
+                        total_change_rate += share.change_rate;
                     }
                 }
             }
@@ -481,12 +486,32 @@ async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) ->
                 contents: &Vec<String>,
                 kind: ShareKind,
                 state: MarketState,
+                total_change_val: i64,
+                total_change_rate: f64,
             ) -> &'a mut CreateEmbed {
+                // 평균 변화 계산.
+                let avg_change_val =
+                    (total_change_val as f64 / contents.len() as f64).round() as i64;
+                let avg_change_rate = total_change_rate / contents.len() as f64;
+
                 e.title(match kind {
                     ShareKind::Index => "관심 지수",
                     ShareKind::Stock => "관심 종목",
                 });
                 e.description(contents.join("\n"));
+                e.field(
+                    "평균",
+                    format!(
+                        "{}{}　{:+.2}%",
+                        get_change_value_char(avg_change_val),
+                        format_value(
+                            avg_change_val.abs(),
+                            if kind == ShareKind::Index { 2 } else { 0 }
+                        ),
+                        avg_change_rate,
+                    ),
+                    true,
+                );
                 e.color(match state {
                     MarketState::PreOpen => Colour::from_rgb(25, 118, 210),
                     MarketState::Close => Colour::from_rgb(97, 97, 97),
@@ -501,7 +526,16 @@ async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) ->
                     // 메시지 수정.
                     result_msg
                         .edit(ctx, |m| {
-                            m.embed(|e| embed_builder(e, &contents, target_kind, rep_state))
+                            m.embed(|e| {
+                                embed_builder(
+                                    e,
+                                    &contents,
+                                    target_kind,
+                                    rep_state,
+                                    total_change_val,
+                                    total_change_rate,
+                                )
+                            })
                         })
                         .await?;
                 }
@@ -510,7 +544,16 @@ async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) ->
                     let response = msg
                         .channel_id
                         .send_message(ctx, |m| {
-                            m.embed(|e| embed_builder(e, &contents, target_kind, rep_state))
+                            m.embed(|e| {
+                                embed_builder(
+                                    e,
+                                    &contents,
+                                    target_kind,
+                                    rep_state,
+                                    total_change_val,
+                                    total_change_rate,
+                                )
+                            })
                         })
                         .await?;
 
