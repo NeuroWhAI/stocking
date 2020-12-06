@@ -134,6 +134,10 @@ pub struct IndexQuote {
     #[html(selector = "td:nth-child(2)", attr = "inner")]
     value: CommaNumber<f64>,
 
+    /// 변동 거래량(1000주).
+    #[html(selector = "td:nth-child(4)", attr = "inner")]
+    trading_vol_move: CommaNumber<i64>,
+
     /// 거래량(1000주).
     #[html(selector = "td:nth-child(5)", attr = "inner")]
     trading_volume: CommaNumber<i64>,
@@ -143,6 +147,11 @@ impl IndexQuote {
     /// 체결가(1P).
     pub fn value(&self) -> f64 {
         self.value.0
+    }
+
+    /// 변동 거래량(1000주).
+    pub fn trading_vol_move(&self) -> i64 {
+        self.trading_vol_move.0
     }
 
     /// 거래량(1000주).
@@ -178,6 +187,10 @@ pub struct StockQuote {
     #[html(selector = "td:nth-child(2)", attr = "inner")]
     value: CommaNumber<i64>,
 
+    /// 변동 거래량(1주).
+    #[html(selector = "td:nth-child(7)", attr = "inner")]
+    trading_vol_move: CommaNumber<i64>,
+
     /// 거래량(1주).
     #[html(selector = "td:nth-child(6)", attr = "inner")]
     trading_volume: CommaNumber<i64>,
@@ -187,6 +200,11 @@ impl StockQuote {
     /// 체결가(1원).
     pub fn value(&self) -> i64 {
         self.value.0
+    }
+
+    /// 변동 거래량(1주).
+    pub fn trading_vol_move(&self) -> i64 {
+        self.trading_vol_move.0
     }
 
     /// 거래량(1주).
@@ -359,6 +377,7 @@ mod tests {
             IndexQuote {
                 time: "15:32".into(),
                 value: 2343.31.into(),
+                trading_vol_move: 333.into(),
                 trading_volume: 874016.into(),
             }
         );
@@ -375,6 +394,7 @@ mod tests {
             &IndexQuote {
                 time: "15:32".into(),
                 value: 2343.31.into(),
+                trading_vol_move: 333.into(),
                 trading_volume: 874016.into(),
             }
         );
@@ -383,6 +403,7 @@ mod tests {
             &IndexQuote {
                 time: "15:27".into(),
                 value: 2343.25.into(),
+                trading_vol_move: 0.into(),
                 trading_volume: 861767.into(),
             }
         );
@@ -409,6 +430,7 @@ mod tests {
             StockQuote {
                 time: "15:30".into(),
                 value: 63200.into(),
+                trading_vol_move: 2413850.into(),
                 trading_volume: 31220915.into(),
             }
         );
@@ -425,6 +447,7 @@ mod tests {
             &StockQuote {
                 time: "15:58".into(),
                 value: 63200.into(),
+                trading_vol_move: 915.into(),
                 trading_volume: 31309570.into(),
             }
         );
@@ -433,6 +456,7 @@ mod tests {
             &StockQuote {
                 time: "15:49".into(),
                 value: 63200.into(),
+                trading_vol_move: 1210.into(),
                 trading_volume: 31301923.into(),
             }
         );
