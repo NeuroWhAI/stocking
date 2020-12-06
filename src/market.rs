@@ -37,7 +37,10 @@ impl Market {
     }
 
     pub fn share_codes_with_kind(&self) -> Vec<(&String, ShareKind)> {
-        self.shares.iter().map(|(code, share)| (code, share.kind)).collect()
+        self.shares
+            .iter()
+            .map(|(code, share)| (code, share.kind))
+            .collect()
     }
 
     pub fn add_or_update_index(&mut self, code: &str, index: &Index) {
@@ -102,6 +105,7 @@ impl Market {
                         time: date.and_time(time),
                         value: (quote.value() * 100.0).round() as i64,
                         trading_volume: quote.trading_volume(),
+                        trading_vol_move: quote.trading_vol_move(),
                     });
                 }
             }
@@ -118,6 +122,7 @@ impl Market {
                         time: date.and_time(time),
                         value: quote.value(),
                         trading_volume: quote.trading_volume(),
+                        trading_vol_move: quote.trading_vol_move(),
                     });
                 }
             }
@@ -142,6 +147,7 @@ pub(crate) struct Quote {
     time: NaiveDateTime,
     value: i64,
     trading_volume: i64,
+    trading_vol_move: i64,
 }
 
 pub(crate) struct Graph {
@@ -169,5 +175,24 @@ impl Graph {
 
     pub(crate) fn len(&self) -> usize {
         self.quotes.len()
+    }
+
+    pub(crate) fn latest_time(&self) -> Option<NaiveDateTime> {
+        self.quotes.last().map(|q| q.time)
+    }
+
+    pub(crate) fn avg_trading_vol_move(&self, offset: usize, cnt: usize) -> Option<f64> {
+        if cnt == 0 || self.quotes.len() < offset + cnt {
+            None
+        } else {
+            let sum = self
+                .quotes
+                .iter()
+                .rev()
+                .skip(offset)
+                .take(cnt)
+                .fold(0, |sum, quote| sum + quote.trading_vol_move);
+            Some(sum as f64 / cnt as f64)
+        }
     }
 }

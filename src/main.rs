@@ -194,6 +194,15 @@ async fn main() -> anyhow::Result<()> {
         });
         quit_channels.push(tx_quit);
         traders.push(handle);
+
+        let (tx_quit, rx_quit) = mpsc::channel();
+        let discord = Arc::clone(&http);
+        let market = Arc::clone(&market_one);
+        let handle = tokio::spawn(async move {
+            trader::notify_high_trading_vol(discord, main_channel, rx_quit, market).await
+        });
+        quit_channels.push(tx_quit);
+        traders.push(handle);
     }
 
     // Fetch bot's owners and id.

@@ -449,6 +449,116 @@ pub(crate) async fn notify_change_rate(
     info!("Exit");
 }
 
+pub(crate) async fn notify_high_trading_vol(
+    discord: Arc<Http>,
+    channel_id: u64,
+    rx_quit: Receiver<()>,
+    market: Arc<RwLock<Market>>,
+) {
+    info!("Start");
+
+    let mut prev_times = HashMap::new();
+
+    loop {
+        if let Ok(_) = rx_quit.try_recv() {
+            break;
+        }
+
+        let codes: Vec<_> = {
+            let market = market.read().await;
+            market
+                .share_codes_with_kind()
+                .into_iter()
+                .filter_map(|(code, kind)| {
+                    if kind == ShareKind::Stock {
+                        Some(code.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        };
+
+        // 관심 종목이 아닌 것의 정보는 제거.
+        prev_times.retain(|k, _| codes.contains(k));
+
+        for code in codes {
+            let data: Option<_> = {
+                let market = market.read().await;
+                market
+                    .get_share(&code)
+                    .filter(|share| share.state == MarketState::Open) // 장중일 때만.
+                    .map(|share| {
+                        (
+                            share.name.clone(),
+                            share.value,
+                            share.change_value,
+                            share.change_rate,
+                            share.graph.latest_time(),
+                            share.graph.avg_trading_vol_move(0, 1), // 현재 변동량.
+                            share.graph.avg_trading_vol_move(1, 20), // 평균 변동량.
+                        )
+                    })
+            };
+
+            if let Some((
+                name,
+                value,
+                change_value,
+                change_rate,
+                Some(time),
+                Some(curr_move),
+                Some(avg_move),
+            )) = data
+            {
+                // 현재 거래 변동량이 최소한은 있고 과거 평균의 일정 배를 초과하면 알림.
+                if curr_move > 1000.0 && curr_move > avg_move * 3.0 {
+                    let cond = prev_times.get(&code).map(|&prev_t| prev_t != time);
+                    let new_time = match cond {
+                        None | Some(true) => true,
+                        _ => false,
+                    };
+
+                    if new_time {
+                        // 최근 알림 시간 기록.
+                        prev_times.insert(code, time);
+
+                        // 급등 알림 전송.
+                        let msg_result = ChannelId(channel_id)
+                            .send_message(&discord, |m| {
+                                m.embed(|e| {
+                                    e.title(format!("거래량 급등 - {}", name));
+                                    e.description(format!(
+                                        "{}　{}{}　{:+.2}%\n변동량 {}(평균 {})",
+                                        format_value(value, 0),
+                                        get_change_value_char(change_value),
+                                        format_value(change_value.abs(), 0),
+                                        change_rate,
+                                        format_value(curr_move as i64, 0),
+                                        format_value(avg_move.round() as i64, 0),
+                                    ));
+                                    e.color(get_change_value_color(change_value));
+                                    e
+                                });
+                                m
+                            })
+                            .await;
+
+                        match msg_result {
+                            Err(err) => error!("{}", err),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
+        time::delay_for(UPDATE_TERM).await;
+    }
+
+    info!("Exit");
+}
+
 async fn send_alarm(
     discord: &Arc<Http>,
     channel_id: u64,
