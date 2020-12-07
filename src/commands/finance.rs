@@ -122,7 +122,7 @@ async fn show_stock(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             let response = msg.channel_id
                 .send_message(&ctx.http, |m| {
                     m.embed(|e| {
-                        e.title(&stock.name);
+                        e.title(format!("{}({})", &stock.name, &code));
                         e.description(format!(
                             "{}　{}{}　{:.2}%",
                             format_value(stock.now_value, 0),
