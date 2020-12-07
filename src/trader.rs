@@ -457,7 +457,7 @@ pub(crate) async fn notify_high_trading_vol(
 ) {
     info!("Start");
 
-    let mut prev_times = HashMap::new();
+    let mut prev_noti = HashMap::new();
 
     loop {
         if let Ok(_) = rx_quit.try_recv() {
@@ -480,7 +480,7 @@ pub(crate) async fn notify_high_trading_vol(
         };
 
         // 관심 종목이 아닌 것의 정보는 제거.
-        prev_times.retain(|k, _| codes.contains(k));
+        prev_noti.retain(|k, _| codes.contains(k));
 
         for code in codes {
             let data: Option<_> = {
@@ -511,17 +511,25 @@ pub(crate) async fn notify_high_trading_vol(
                 Some(avg_move),
             )) = data
             {
-                // 현재 거래 변동량이 최소한은 있고 과거 평균의 일정 배를 초과하면 알림.
-                if curr_move > 1000.0 && curr_move > avg_move * 3.0 {
-                    let cond = prev_times.get(&code).map(|&prev_t| prev_t != time);
-                    let new_time = match cond {
+                // 현재 거래 변동량이 최소한은 있고 과거 평균의 일정 배를 초과하는 것이 급등 조건.
+                if curr_move > 3000.0 && curr_move > avg_move * 5.0 {
+                    let scale = curr_move / avg_move;
+
+                    // 최초 알림이거나 아래 조건 만족시에만 알림.
+                    let cond = prev_noti.get(&code).map(|&(prev_t, prev_scale)| {
+                        // 이전 알림과 중복 시간이 아니고
+                        // 급등 기록을 갱신했거나 이전 알림 후 일정 시간이 지났다면.
+                        prev_t != time
+                            && (scale > prev_scale || time - prev_t > Duration::minutes(10))
+                    });
+                    let new_noti = match cond {
                         None | Some(true) => true,
                         _ => false,
                     };
 
-                    if new_time {
-                        // 최근 알림 시간 기록.
-                        prev_times.insert(code, time);
+                    if new_noti {
+                        // 최근 알림 기록.
+                        prev_noti.insert(code, (time, scale));
 
                         // 급등 알림 전송.
                         let msg_result = ChannelId(channel_id)
@@ -529,13 +537,14 @@ pub(crate) async fn notify_high_trading_vol(
                                 m.embed(|e| {
                                     e.title(format!("거래량 급등 - {}", name));
                                     e.description(format!(
-                                        "{}　{}{}　{:+.2}%\n변동량 {}(평균 {})",
+                                        "{}　{}{}　{:+.2}%\n변동량 {}(평균 {}의 {:.1}%)",
                                         format_value(value, 0),
                                         get_change_value_char(change_value),
                                         format_value(change_value.abs(), 0),
                                         change_rate,
                                         format_value(curr_move as i64, 0),
                                         format_value(avg_move.round() as i64, 0),
+                                        scale * 100.0,
                                     ));
                                     e.color(get_change_value_color(change_value));
                                     e
