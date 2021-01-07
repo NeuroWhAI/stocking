@@ -69,7 +69,7 @@ pub(crate) async fn update_market(
         }
 
         if !on_work {
-            time::delay_for(UPDATE_TERM).await;
+            time::sleep(UPDATE_TERM).await;
             continue;
         }
 
@@ -168,7 +168,7 @@ pub(crate) async fn update_market(
             while graph_len < 120 && time_jump_cnt <= 10 {
                 // 추가 요청시 딜레이.
                 if page_num > 1 || time_jump_cnt > 0 {
-                    time::delay_for(std::time::Duration::from_millis(200)).await;
+                    time::sleep(std::time::Duration::from_millis(200)).await;
                 }
 
                 debug!("Get quotes: {}, {}, {}", code, date_time, page_num);
@@ -211,13 +211,13 @@ pub(crate) async fn update_market(
                     Err(err) => {
                         error!("{}", err);
                         graph_len += 10; // 무한 루프 방지를 위해 이렇게 하고 재시도.
-                        time::delay_for(std::time::Duration::from_millis(5000)).await;
+                        time::sleep(std::time::Duration::from_millis(5000)).await;
                     }
                 }
             }
         }
 
-        time::delay_for(UPDATE_TERM).await;
+        time::sleep(UPDATE_TERM).await;
     }
 
     info!("Exit");
@@ -312,7 +312,7 @@ pub(crate) async fn notify_market_state(
             }
         }
 
-        time::delay_for(UPDATE_TERM).await;
+        time::sleep(UPDATE_TERM).await;
     }
 
     info!("Exit");
@@ -443,7 +443,7 @@ pub(crate) async fn notify_change_rate(
             }
         }
 
-        time::delay_for(UPDATE_TERM).await;
+        time::sleep(UPDATE_TERM).await;
     }
 
     info!("Exit");
@@ -562,7 +562,7 @@ pub(crate) async fn notify_high_trading_vol(
             }
         }
 
-        time::delay_for(UPDATE_TERM).await;
+        time::sleep(UPDATE_TERM).await;
     }
 
     info!("Exit");
