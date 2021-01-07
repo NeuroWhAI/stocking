@@ -19,6 +19,7 @@ reqwest = "0.11.0"
 unhtml = "0.8"
 unhtml_derive = "0.8"
 chrono = "0.4"
+assert_approx_eq = "1.1.0"
 
 [dependencies.tokio]
 version = "1.0.1"
