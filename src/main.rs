@@ -113,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
                 info!("Load index {}", code);
                 let index = api::get_index(&code)
                     .await
-                    .expect(&format!("Load {}", code));
+                    .unwrap_or_else(|_| panic!("Load {}", code));
 
                 market.add_or_update_index(&code, &index);
             }
@@ -131,7 +131,7 @@ async fn main() -> anyhow::Result<()> {
                 info!("Load stock {}", code);
                 let stock = api::get_stock(&code)
                     .await
-                    .expect(&format!("Load {}", code));
+                    .unwrap_or_else(|_| panic!("Load {}", code));
 
                 market.add_or_update_stock(&code, &stock);
             }
@@ -327,7 +327,7 @@ async fn load_alarms(path: &PathBuf) -> anyhow::Result<Vec<i64>> {
     }
 }
 
-async fn save_alarms(path: &PathBuf, alarms: &Vec<i64>) -> anyhow::Result<()> {
+async fn save_alarms(path: &PathBuf, alarms: &[i64]) -> anyhow::Result<()> {
     if let Ok(mut file) = OpenOptions::new()
         .write(true)
         .truncate(true)

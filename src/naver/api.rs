@@ -129,6 +129,7 @@ fn path_mobile_stock(json: Option<&mut Value>) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_approx_eq::assert_approx_eq;
 
     #[test]
     fn parse_index_success() {
@@ -183,7 +184,7 @@ mod tests {
             }
         );
         assert_eq!(stock.change_value(), -300);
-        assert_eq!(stock.change_rate(), -0.51);
+        assert_approx_eq!(stock.change_rate(), -0.51);
     }
 
     #[test]

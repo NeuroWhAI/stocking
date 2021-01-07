@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use serenity::utils::Colour;
 
 pub(crate) fn format_value(mut val: i64, radix: i64) -> String {
@@ -26,7 +28,7 @@ pub(crate) fn format_value(mut val: i64, radix: i64) -> String {
     }
 
     while base >= 10 {
-        if s.len() > 0 && &s[..1] != "-" && digit % 3 == 1 {
+        if !s.is_empty() && &s[..1] != "-" && digit % 3 == 1 {
             s.push(',');
         }
         s.push((integer / base + '0' as i64) as u8 as char);
@@ -47,12 +49,10 @@ pub(crate) fn format_value(mut val: i64, radix: i64) -> String {
 }
 
 pub(crate) fn get_change_value_char(val: i64) -> char {
-    if val > 0 {
-        '▲'
-    } else if val < 0 {
-        '▼'
-    } else {
-        '='
+    match val.cmp(&0) {
+        Ordering::Greater => '▲',
+        Ordering::Less => '▼',
+        Ordering::Equal => '=',
     }
 }
 

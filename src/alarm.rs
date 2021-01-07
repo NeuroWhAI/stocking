@@ -20,7 +20,7 @@ impl StockAlarm {
                     v.insert(i, target_value);
                 }
             })
-            .or_insert([target_value].to_vec());
+            .or_insert_with(|| [target_value].to_vec());
     }
 
     pub fn remove_alarm(&mut self, code: &str, target_value: i64) -> bool {
@@ -30,8 +30,8 @@ impl StockAlarm {
                 if v.is_empty() {
                     self.alarms.remove(code);
                 }
-                
-                return true
+
+                return true;
             }
         }
 

@@ -39,7 +39,9 @@ pub(crate) async fn update_market(
             };
 
             if not_exists {
-                let index = api::get_index(code).await.expect(&format!("Init {}", code));
+                let index = api::get_index(code)
+                    .await
+                    .unwrap_or_else(|_| panic!("Init {}", code));
 
                 let mut market = market.write().await;
                 market.add_or_update_index(code, &index);
@@ -50,7 +52,7 @@ pub(crate) async fn update_market(
     let mut prev_on_work = false;
 
     loop {
-        if let Ok(_) = rx_quit.try_recv() {
+        if rx_quit.try_recv().is_ok() {
             break;
         }
 
@@ -179,16 +181,16 @@ pub(crate) async fn update_market(
                     match kind {
                         ShareKind::Index => {
                             let page = api::get_index_quotes(&code, &date_time, page_num).await;
-                            page.and_then(|page| {
+                            page.map(|page| {
                                 market.update_index_graph(&code, &page, &date_time.date());
-                                Ok(page.is_last)
+                                page.is_last
                             })
                         }
                         ShareKind::Stock => {
                             let page = api::get_stock_quotes(&code, &date_time, page_num).await;
-                            page.and_then(|page| {
+                            page.map(|page| {
                                 market.update_stock_graph(&code, &page, &date_time.date());
-                                Ok(page.is_last)
+                                page.is_last
                             })
                         }
                     }
@@ -234,7 +236,7 @@ pub(crate) async fn notify_market_state(
     let mut prev_states = HashMap::new();
 
     loop {
-        if let Ok(_) = rx_quit.try_recv() {
+        if rx_quit.try_recv().is_ok() {
             break;
         }
 
@@ -243,11 +245,7 @@ pub(crate) async fn notify_market_state(
 
         let codes: Vec<_> = {
             let market = market.read().await;
-            market
-                .share_codes()
-                .into_iter()
-                .map(|s| s.clone())
-                .collect()
+            market.share_codes().into_iter().cloned().collect()
         };
 
         // 관심 종목이 아닌 것의 상태 기억은 제거.
@@ -306,9 +304,8 @@ pub(crate) async fn notify_market_state(
                 })
                 .await;
 
-            match msg_result {
-                Err(err) => error!("{}", err),
-                _ => {}
+            if let Err(err) = msg_result {
+                error!("{}", err);
             }
         }
 
@@ -333,17 +330,13 @@ pub(crate) async fn notify_change_rate(
     let mut rate_limits = HashMap::new();
 
     loop {
-        if let Ok(_) = rx_quit.try_recv() {
+        if rx_quit.try_recv().is_ok() {
             break;
         }
 
         let codes: Vec<_> = {
             let market = market.read().await;
-            market
-                .share_codes()
-                .into_iter()
-                .map(|s| s.clone())
-                .collect()
+            market.share_codes().into_iter().cloned().collect()
         };
 
         // 관심 종목이 아닌 것의 정보는 제거.
@@ -424,9 +417,8 @@ pub(crate) async fn notify_change_rate(
                             })
                             .await;
 
-                        match msg_result {
-                            Err(err) => error!("{}", err),
-                            _ => {}
+                        if let Err(err) = msg_result {
+                            error!("{}", err);
                         }
                     }
                 } else {
@@ -460,7 +452,7 @@ pub(crate) async fn notify_high_trading_vol(
     let mut prev_noti = HashMap::new();
 
     loop {
-        if let Ok(_) = rx_quit.try_recv() {
+        if rx_quit.try_recv().is_ok() {
             break;
         }
 
@@ -522,10 +514,7 @@ pub(crate) async fn notify_high_trading_vol(
                         prev_t != time
                             && (scale > prev_scale || time - prev_t > Duration::minutes(10))
                     });
-                    let new_noti = match cond {
-                        None | Some(true) => true,
-                        _ => false,
-                    };
+                    let new_noti = matches!(cond, None | Some(true));
 
                     if new_noti {
                         // 최근 알림 기록.
@@ -553,9 +542,8 @@ pub(crate) async fn notify_high_trading_vol(
                             })
                             .await;
 
-                        match msg_result {
-                            Err(err) => error!("{}", err),
-                            _ => {}
+                        if let Err(err) = msg_result {
+                            error!("{}", err);
                         }
                     }
                 }
@@ -572,7 +560,7 @@ async fn send_alarm(
     discord: &Arc<Http>,
     channel_id: u64,
     stock: &Stock,
-    target_values: &Vec<i64>,
+    target_values: &[i64],
     move_val: i64,
 ) {
     let msg_result = ChannelId(channel_id)
@@ -580,7 +568,7 @@ async fn send_alarm(
             m.embed(|e| {
                 e.title(format!("알람 - {}", stock.name));
                 let alarm_desc = target_values
-                    .into_iter()
+                    .iter()
                     .map(|&val| format_value(val, 0) + "원")
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -599,8 +587,7 @@ async fn send_alarm(
         })
         .await;
 
-    match msg_result {
-        Err(err) => error!("{}", err),
-        _ => {}
+    if let Err(err) = msg_result {
+        error!("{}", err);
     }
 }

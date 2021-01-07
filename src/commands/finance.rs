@@ -368,7 +368,7 @@ async fn show_alarms(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
                                         .map(|share| &share.name)
                                         .unwrap_or(code),
                                     // 알람 목록 텍스트 생성.
-                                    v.into_iter()
+                                    v.iter()
                                         .map(|&val| format_value(val, 0))
                                         .collect::<Vec<_>>()
                                         .join(" | ")
@@ -382,7 +382,7 @@ async fn show_alarms(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
             } else {
                 // 특정 종목의 알람 조회.
                 alarm_manager.get_alarms(&code).map(|v| {
-                    v.into_iter()
+                    v.iter()
                         .map(|&target_value| format_value(target_value, 0) + "원")
                         .collect()
                 })
@@ -420,7 +420,7 @@ async fn show_alarms(ctx: &Context, msg: &Message, args: Args) -> CommandResult 
 async fn get_code(code_or_name: &str) -> anyhow::Result<String> {
     if code_or_name.parse::<usize>().is_err() {
         let results = api::search(code_or_name).await?;
-        if results.len() >= 1 {
+        if !results.is_empty() {
             Ok(results[0].code.clone())
         } else {
             bail!("No result");
@@ -483,7 +483,7 @@ async fn show_my_shares(ctx: &Context, msg: &Message, target_kind: ShareKind) ->
         } else {
             fn embed_builder<'a>(
                 e: &'a mut CreateEmbed,
-                contents: &Vec<String>,
+                contents: &[String],
                 kind: ShareKind,
                 state: MarketState,
                 total_change_val: i64,
