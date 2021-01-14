@@ -11,7 +11,7 @@ const HOST_FINANCE: &str = "https://finance.naver.com/";
 const HOST_M_STOCK: &str = "https://m.stock.naver.com/";
 
 pub async fn get_index(name: &str) -> Result<Index> {
-    let json: Value = reqwest::get(&format!(
+    let json: Value = request_url(&format!(
         "{}api/realtime?query=SERVICE_INDEX:{}",
         HOST_POLL, name
     ))
@@ -23,7 +23,7 @@ pub async fn get_index(name: &str) -> Result<Index> {
 }
 
 pub async fn get_stock(code: &str) -> Result<Stock> {
-    let text = reqwest::get(&format!(
+    let text = request_url(&format!(
         "{}api/realtime?query=SERVICE_ITEM:{}",
         HOST_POLL, code
     ))
@@ -41,7 +41,7 @@ pub async fn get_index_quotes(
     date_and_max_time: &NaiveDateTime,
     page: usize,
 ) -> Result<IndexQuotePage> {
-    let html = reqwest::get(&format!(
+    let html = request_url(&format!(
         "{}sise/sise_index_time.nhn?code={}&thistime={}&page={}",
         HOST_FINANCE,
         name,
@@ -64,7 +64,7 @@ pub async fn get_stock_quotes(
     date_and_max_time: &NaiveDateTime,
     page: usize,
 ) -> Result<StockQuotePage> {
-    let html = reqwest::get(&format!(
+    let html = request_url(&format!(
         "{}item/sise_time.nhn?code={}&thistime={}&page={}",
         HOST_FINANCE,
         code,
@@ -83,7 +83,7 @@ pub async fn get_stock_quotes(
 }
 
 pub async fn search(keyword: &str) -> Result<Vec<SearchResult>> {
-    let text = reqwest::get(&format!(
+    let text = request_url(&format!(
         "{}api/json/search/searchListJson.nhn?keyword={}",
         HOST_M_STOCK, keyword
     ))
@@ -94,6 +94,15 @@ pub async fn search(keyword: &str) -> Result<Vec<SearchResult>> {
     let json = serde_json::from_str(&text)?;
 
     Ok(parse_response(json, path_mobile_stock)?)
+}
+
+async fn request_url(url: &str) -> reqwest::Result<reqwest::Response> {
+    let client = reqwest::Client::new();
+    client
+        .get(url)
+        .header(reqwest::header::USER_AGENT, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3)")
+        .send()
+        .await
 }
 
 fn parse_response<T, F>(mut json: Value, path: F) -> Result<T>
