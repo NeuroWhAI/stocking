@@ -565,6 +565,7 @@ async fn send_alarm(
 ) {
     let msg_result = ChannelId(channel_id)
         .send_message(discord, |m| {
+            m.content("@here");
             m.embed(|e| {
                 e.title(format!("알람 - {}", stock.name));
                 let alarm_desc = target_values
