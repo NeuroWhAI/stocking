@@ -217,7 +217,7 @@ async fn show_my_stocks(ctx: &Context, msg: &Message) -> CommandResult {
 #[aliases("alarm")]
 async fn set_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let code = {
-        let code_or_name = args.single::<String>()?;
+        let code_or_name = args.single_quoted::<String>()?;
         match get_code(&code_or_name).await {
             Ok(code) => code,
             Err(_) => code_or_name.to_owned(),
@@ -266,7 +266,7 @@ async fn set_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 #[aliases("off")]
 async fn off_alarm(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let code = {
-        let code_or_name = args.single::<String>()?;
+        let code_or_name = args.single_quoted::<String>()?;
         match get_code(&code_or_name).await {
             Ok(code) => code,
             Err(_) => code_or_name.to_owned(),
