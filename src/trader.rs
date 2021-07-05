@@ -324,7 +324,7 @@ pub(crate) async fn notify_change_rate(
     info!("Start");
 
     // 상한 범위.
-    let limit_range = 1.0;
+    let limit_range = 4.0;
 
     let mut prev_states = HashMap::new();
     let mut rate_limits = HashMap::new();
@@ -398,6 +398,7 @@ pub(crate) async fn notify_change_rate(
                         // 등락 알림 전송.
                         let msg_result = ChannelId(channel_id)
                             .send_message(&discord, |m| {
+                                m.content("@everyone");
                                 m.embed(|e| {
                                     let move_desc =
                                         if move_val > 0.0 { "상승" } else { "하락" };
